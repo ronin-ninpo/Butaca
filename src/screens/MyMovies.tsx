@@ -288,16 +288,22 @@ function SeenRow({ e, rankNo, handle, rowRef, style, dragging }: { e: Entry; ran
   );
 }
 
+const NO_ONE = '__nadie__';
+
 function Want() {
   const entries = useStore((s) => s.entries);
+  const companions = useStore((s) => s.companions);
   const openRate = useSheets((s) => s.openRate);
   const openActions = useSheets((s) => s.openActions);
+  const openWith = useSheets((s) => s.openWith);
+  const [withF, setWithF] = useState<string | null>(null);
   const [sort, setSort] = useState<'recent' | 'imdb' | 'year' | 'title'>('recent');
   const [typeF, setTypeF] = useState<TypeF>('all');
   const [genreF, setGenreF] = useState<number | null>(null);
   const all = Object.values(entries).filter((e) => e.status === 'want');
   const list = all
     .filter((e) => (typeF === 'all' || e.snap.type === typeF) && (genreF === null || e.snap.genreIds.includes(genreF)))
+    .filter((e) => withF === null || (withF === NO_ONE ? !e.withWho?.length : e.withWho?.includes(withF)))
     .sort((a, b) =>
       sort === 'recent' ? b.addedAt - a.addedAt : sort === 'imdb' ? imdbNum(b) - imdbNum(a) : sort === 'year' ? (b.snap.year ?? '').localeCompare(a.snap.year ?? '') : a.snap.title.localeCompare(b.snap.title, 'es'),
     );
@@ -320,7 +326,29 @@ function Want() {
           <option value="title">Título (A-Z)</option>
         </select>
       </div>
+      {companions.length > 0 && (
+        <div className="chips" style={{ marginTop: 10 }} aria-label="Filtrar por con quién verla">
+          <span className="chip-label">
+            <Icon name="users" size={16} /> Con
+          </span>
+          <button className={`chip ${withF === null ? 'on' : ''}`} onClick={() => setWithF(null)}>
+            Cualquiera
+          </button>
+          {companions.map((c) => {
+            const n = all.filter((e) => e.withWho?.includes(c)).length;
+            return (
+              <button key={c} className={`chip ${withF === c ? 'on' : ''}`} onClick={() => setWithF(withF === c ? null : c)}>
+                {c} <span className="faint">{n}</span>
+              </button>
+            );
+          })}
+          <button className={`chip ${withF === NO_ONE ? 'on' : ''}`} onClick={() => setWithF(withF === NO_ONE ? null : NO_ONE)}>
+            Sin asignar <span className="faint">{all.filter((e) => !e.withWho?.length).length}</span>
+          </button>
+        </div>
+      )}
       <Filters typeF={typeF} setTypeF={setTypeF} genreF={genreF} setGenreF={setGenreF} list={all} />
+      {list.length === 0 && <p className="muted small center" style={{ marginTop: 24 }}>No hay películas con esos filtros.</p>}
       <div style={{ marginTop: 6 }}>
         {list.map((e) => {
           const s = e.snap;
@@ -329,17 +357,23 @@ function Want() {
               <Link to={`/t/${s.type}/${s.id}`}>
                 <Poster path={s.poster} title={s.title} size="w154" />
               </Link>
-              <Link to={`/t/${s.type}/${s.id}`} className="info">
-                <div className="t clamp-2">{s.title}</div>
-                <div className="sub">
-                  {s.year && <span>{s.year}</span>}
-                  {s.type === 'tv' && <span className="dot">Serie</span>}
-                  <span className="dot">
-                    <RatingBadge type={s.type} id={s.id} imdbId={s.imdbId} tmdbScore={s.tmdbScore} />
-                  </span>
-                </div>
-                {s.directors?.[0] && <div className="sub ellipsis">{s.directors.map((d) => d.name).join(', ')}</div>}
-              </Link>
+              <div className="info">
+                <Link to={`/t/${s.type}/${s.id}`}>
+                  <div className="t clamp-2">{s.title}</div>
+                  <div className="sub">
+                    {s.year && <span>{s.year}</span>}
+                    {s.type === 'tv' && <span className="dot">Serie</span>}
+                    <span className="dot">
+                      <RatingBadge type={s.type} id={s.id} imdbId={s.imdbId} tmdbScore={s.tmdbScore} />
+                    </span>
+                  </div>
+                  {s.directors?.[0] && <div className="sub ellipsis">{s.directors.map((d) => d.name).join(', ')}</div>}
+                </Link>
+                <button className={`with-line ${e.withWho?.length ? 'set' : ''}`} onClick={() => openWith(summaryFromSnap(s))} aria-label={`Con quién ver ${s.title}`}>
+                  <Icon name="users" size={14} />
+                  <span className="ellipsis">{e.withWho?.length ? e.withWho.join(' · ') : '¿Con quién?'}</span>
+                </button>
+              </div>
               <button className="btn small" onClick={() => openRate(summaryFromSnap(s))}>
                 <Icon name="eye" size={16} /> La vi
               </button>

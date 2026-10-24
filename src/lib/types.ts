@@ -47,6 +47,8 @@ export interface Entry {
   rating?: number;
   /** Una de mis favoritas de siempre: va arriba de todo en "Mis favoritas" */
   legend?: boolean;
+  /** Con quién la querés ver (nombres de etiquetas) */
+  withWho?: string[];
   addedAt: number;
   seenAt?: number;
   /** Último cambio (para sincronizar entre dispositivos) */

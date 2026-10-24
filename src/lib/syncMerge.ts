@@ -9,7 +9,7 @@ export interface RemoteEntry extends Entry {
 
 export type SyncedSettings = Pick<Settings, 'tmdbKey' | 'omdbKey' | 'region' | 'includeTv'>;
 
-export const META_FIELDS = ['order', 'favActors', 'favDirectors', 'settings'] as const;
+export const META_FIELDS = ['order', 'favActors', 'favDirectors', 'companions', 'settings'] as const;
 export type MetaField = (typeof META_FIELDS)[number];
 
 /** Documento users/{uid}: listas generales, cada una con la fecha de su último cambio. */
@@ -20,6 +20,8 @@ export interface RemoteMeta {
   favActorsAt?: number;
   favDirectors?: Record<string, FavPerson>;
   favDirectorsAt?: number;
+  companions?: string[];
+  companionsAt?: number;
   settings?: Partial<SyncedSettings>;
   settingsAt?: number;
 }
@@ -30,6 +32,7 @@ export interface LocalMeta {
   order: number;
   favActors: number;
   favDirectors: number;
+  companions: number;
   settings: number;
 }
 
@@ -38,6 +41,7 @@ export interface LocalState {
   order: string[];
   favActors: Record<string, FavPerson>;
   favDirectors: Record<string, FavPerson>;
+  companions: string[];
   settings: Settings;
 }
 
@@ -74,7 +78,9 @@ export interface MergePlan {
 export function mergeInitial(local: LocalState, remote: RemoteEntry[], rmeta: RemoteMeta | null, prevMeta: LocalMeta | null, uid: string, now = Date.now()): MergePlan {
   const otherAccount = !!prevMeta && prevMeta.uid !== uid;
   const firstTime = !prevMeta || otherAccount;
-  const meta: LocalMeta = firstTime ? { uid, order: 0, favActors: 0, favDirectors: 0, settings: 0 } : { ...prevMeta };
+  const meta: LocalMeta = firstTime
+    ? { uid, order: 0, favActors: 0, favDirectors: 0, companions: 0, settings: 0 }
+    : { ...prevMeta, companions: prevMeta.companions ?? 0 }; // los guardados antes de las etiquetas no tienen ese campo
   const localEntries = otherAccount ? {} : local.entries;
 
   const patch: RemotePatch = { upserts: [], deletes: [] };
@@ -108,6 +114,22 @@ export function mergeInitial(local: LocalState, remote: RemoteEntry[], rmeta: Re
       patch[f] = rv;
       meta[f] = rAt;
     } else if (meta[f] > rAt) metaUpload.push(f);
+  }
+
+  {
+    const rv = rmeta?.companions;
+    const rAt = rmeta?.companionsAt ?? 0;
+    if (firstTime) {
+      const merged = [...new Set([...(rv ?? []), ...(otherAccount ? [] : local.companions)])].sort((a, b) => a.localeCompare(b, 'es'));
+      patch.companions = merged;
+      if (merged.length !== (rv ?? []).length || !rv) {
+        metaUpload.push('companions');
+        meta.companions = now;
+      } else meta.companions = rAt;
+    } else if (rv && rAt > meta.companions) {
+      patch.companions = rv;
+      meta.companions = rAt;
+    } else if (meta.companions > rAt) metaUpload.push('companions');
   }
 
   {

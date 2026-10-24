@@ -258,6 +258,60 @@ try {
   await page.waitForSelector('.mrow');
   await shot('quiero-ver');
 
+  console.log('Con quién verla');
+  const wantRows = page.locator('.mrow');
+  assert((await wantRows.count()) >= 2, `${await wantRows.count()} películas en Quiero ver`);
+  const t0 = await wantRows.nth(0).locator('.t').textContent();
+  const t1 = await wantRows.nth(1).locator('.t').textContent();
+  await wantRows.nth(0).locator('.with-line').click();
+  await page.waitForSelector('.sheet input[aria-label="Nueva etiqueta"]');
+  for (const name of ['Belén', 'Familia']) {
+    await page.fill('.sheet input[aria-label="Nueva etiqueta"]', name);
+    await page.click('.sheet button:has-text("Agregar")');
+  }
+  await page.fill('.sheet input[aria-label="Nueva etiqueta"]', '  belén ');
+  await page.click('.sheet button:has-text("Agregar")');
+  assert((await page.locator('.sheet .tag-grid .chip').count()) === 2, 'no se duplica una etiqueta escrita distinto («belén» = «Belén»)');
+  assert((await page.locator('.sheet .tag-grid .chip[aria-pressed="true"]').count()) === 2, 'las etiquetas nuevas quedan elegidas');
+  await shot('con-quien');
+  await page.click('.sheet button:has-text("Listo")');
+  await wantRows.nth(1).locator('.with-line').click();
+  await page.click('.sheet .tag-grid .chip:has-text("Familia")');
+  await page.click('.sheet button:has-text("Listo")');
+  await page.waitForTimeout(300);
+  assert((await wantRows.nth(0).locator('.with-line').textContent()).includes('Belén · Familia'), `«${t0}»: con Belén y Familia`);
+  assert((await wantRows.nth(1).locator('.with-line').textContent()).includes('Familia'), `«${t1}»: con Familia`);
+  await shot('quiero-ver-etiquetas');
+
+  const filterChip = (name) => page.locator('[aria-label="Filtrar por con quién verla"] .chip', { hasText: name });
+  await filterChip('Belén').click();
+  assert((await wantRows.count()) === 1, 'filtrar por Belén muestra 1');
+  await filterChip('Familia').click();
+  assert((await wantRows.count()) === 2, 'filtrar por Familia muestra 2');
+  await filterChip('Sin asignar').click();
+  assert((await wantRows.count()) === 0 && (await page.isVisible('text=No hay películas con esos filtros')), 'filtrar «Sin asignar» muestra 0');
+  await filterChip('Cualquiera').click();
+
+  await wantRows.nth(0).locator('.with-line').click();
+  await page.click('.sheet >> text=Editar etiquetas');
+  const belen = page.locator('.sheet input[aria-label="Nombre de la etiqueta Belén"]');
+  await belen.fill('Belu');
+  await belen.press('Enter');
+  page.once('dialog', (d) => d.accept());
+  await page.click('.sheet button[aria-label="Borrar la etiqueta Familia"]');
+  await page.click('.sheet button:has-text("Volver")');
+  await page.click('.sheet button:has-text("Listo")');
+  s = await lib();
+  const tagged = Object.values(s.entries).filter((e) => e.withWho?.length);
+  assert(JSON.stringify(s.companions) === '["Belu"]' && tagged.length === 1 && tagged[0].withWho.join() === 'Belu', 'renombrar y borrar etiquetas actualiza todas las películas');
+
+  await page.click('.mrow >> nth=0 >> button:has-text("La vi")');
+  await rateInSheet(4);
+  await page.waitForTimeout(300);
+  s = await lib();
+  assert(Object.values(s.entries).find((e) => e.snap.title === t0)?.withWho?.[0] === 'Belu', 'al marcarla como vista conserva con quién');
+  await page.click('.segmented >> text=Quiero ver');
+
   console.log('Favoritos');
   await page.click('.tabbar >> text=Favoritos');
   await page.waitForSelector('.mrow:has-text("Keanu Reeves")');

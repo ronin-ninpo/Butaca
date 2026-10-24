@@ -37,7 +37,7 @@ function afterSheetClosed(fn: () => void) {
 }
 
 export function Sheets() {
-  const { kind, target, close, openRate } = useSheets();
+  const { kind, target, close, openRate, openWith } = useSheets();
   const navigate = useNavigate();
   const info = target ? infoOf(target) : null;
   const key = info ? keyOf(info.type, info.id) : '';
@@ -69,7 +69,7 @@ export function Sheets() {
   return (
     <>
       <div className="scrim" onClick={close} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={kind === 'rate' ? 'Calificar' : 'Opciones'}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={kind === 'rate' ? 'Calificar' : kind === 'with' ? 'Con quién verla' : 'Opciones'}>
         <div className="grab" />
         <div className="row" style={{ gap: 12, alignItems: 'center' }}>
           <Poster path={info.poster} title={info.title} size="w92" className="sheet-poster" />
@@ -79,7 +79,9 @@ export function Sheets() {
           </div>
         </div>
 
-        {kind === 'rate' ? (
+        {kind === 'with' ? (
+          <WithPanel k={key} onDone={close} />
+        ) : kind === 'rate' ? (
           <>
             <p className="center muted" style={{ marginTop: 18 }}>
               ¿Qué te pareció?
@@ -145,6 +147,11 @@ export function Sheets() {
             >
               <Icon name="bookmark" fill={entry?.status === 'want'} /> {entry?.status === 'want' ? 'Quitar de Quiero ver' : 'Quiero verla'}
             </button>
+            {entry?.status === 'want' && (
+              <button className="opt" onClick={() => openWith(target)}>
+                <Icon name="users" /> {entry.withWho?.length ? `Con ${entry.withWho.join(', ')}` : '¿Con quién la querés ver?'}
+              </button>
+            )}
             <button className={`opt ${entry?.status === 'seen' ? 'on' : ''}`} onClick={() => openRate(target)}>
               <Icon name="eye" /> {entry?.status === 'seen' ? 'Cambiar mi calificación' : 'Ya la vi…'}
             </button>
@@ -171,6 +178,112 @@ export function Sheets() {
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+/** Elegir con quién ver la película, crear etiquetas nuevas y editarlas. */
+function WithPanel({ k, onDone }: { k: string; onDone: () => void }) {
+  const selected = useStore((s) => s.entries[k]?.withWho) ?? [];
+  const companions = useStore((s) => s.companions);
+  const { setWithWho, addCompanion } = useStore.getState();
+  const [text, setText] = useState('');
+  const [editing, setEditing] = useState(false);
+
+  const toggle = (n: string) => setWithWho(k, selected.includes(n) ? selected.filter((x) => x !== n) : [...selected, n]);
+  const create = (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = addCompanion(text);
+    if (n && !selected.includes(n)) setWithWho(k, [...selected, n]);
+    setText('');
+  };
+
+  if (editing) return <TagEditor onBack={() => setEditing(false)} />;
+
+  return (
+    <>
+      <p className="muted" style={{ marginTop: 16 }}>
+        ¿Con quién la querés ver?
+      </p>
+      {companions.length ? (
+        <div className="tag-grid" style={{ marginTop: 10 }}>
+          {companions.map((c) => {
+            const on = selected.includes(c);
+            return (
+              <button key={c} className={`chip ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => toggle(c)}>
+                {on && <Icon name="check" size={14} stroke={3} />}
+                {c}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="faint small" style={{ marginTop: 8 }}>
+          Todavía no tenés etiquetas. Creá la primera abajo (por ejemplo: Belén, Familia, Sobrino).
+        </p>
+      )}
+      <form className="row" style={{ marginTop: 14 }} onSubmit={create}>
+        <input className="input grow" placeholder="Nueva etiqueta (ej: Familia)" aria-label="Nueva etiqueta" value={text} maxLength={30} onChange={(e) => setText(e.target.value)} />
+        <button className="btn" type="submit" disabled={!text.trim()}>
+          <Icon name="plus" size={18} /> Agregar
+        </button>
+      </form>
+      <div className="row" style={{ marginTop: 16, justifyContent: 'space-between' }}>
+        {companions.length > 0 ? (
+          <button className="link small" onClick={() => setEditing(true)}>
+            Editar etiquetas
+          </button>
+        ) : (
+          <span />
+        )}
+        <button className="btn primary" onClick={onDone}>
+          Listo
+        </button>
+      </div>
+    </>
+  );
+}
+
+function TagEditor({ onBack }: { onBack: () => void }) {
+  const companions = useStore((s) => s.companions);
+  const entries = useStore((s) => s.entries);
+  const { renameCompanion, removeCompanion } = useStore.getState();
+  const uses = (c: string) => Object.values(entries).filter((e) => e.withWho?.includes(c)).length;
+  return (
+    <>
+      <p className="muted" style={{ marginTop: 16 }}>
+        Editá el nombre o borrá etiquetas. Los cambios se aplican en todas tus películas.
+      </p>
+      <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+        {companions.map((c) => (
+          <div key={c} className="row">
+            <input
+              className="input grow"
+              defaultValue={c}
+              aria-label={`Nombre de la etiqueta ${c}`}
+              maxLength={30}
+              onBlur={(e) => e.target.value.trim() && e.target.value !== c && renameCompanion(c, e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            />
+            <span className="faint small" style={{ width: 54, textAlign: 'right' }}>
+              {uses(c)} {uses(c) === 1 ? 'peli' : 'pelis'}
+            </span>
+            <button
+              className="icon-btn ghost"
+              aria-label={`Borrar la etiqueta ${c}`}
+              onClick={() => {
+                const n = uses(c);
+                if (!n || confirm(`¿Borrar «${c}»? Se quita de ${n} ${n === 1 ? 'película' : 'películas'}.`)) removeCompanion(c);
+              }}
+            >
+              <Icon name="trash" size={18} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button className="btn block" style={{ marginTop: 16 }} onClick={onBack}>
+        Volver
+      </button>
     </>
   );
 }

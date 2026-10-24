@@ -18,6 +18,8 @@ interface LibraryState {
   order: string[];
   favActors: Record<string, FavPerson>;
   favDirectors: Record<string, FavPerson>;
+  /** Etiquetas de "con quién verla" creadas por el usuario */
+  companions: string[];
   settings: Settings;
 
   setStatus: (snap: Snapshot, status: Status, rating?: number, legend?: boolean) => void;
@@ -27,6 +29,11 @@ interface LibraryState {
   restore: (entry: Entry, orderIndex?: number) => void;
   setOrder: (order: string[]) => void;
   toggleFav: (kind: FavKind, p: PersonRef) => boolean;
+  setWithWho: (key: string, names: string[]) => void;
+  /** Crea la etiqueta (si no existe una igual) y devuelve el nombre que quedó guardado. */
+  addCompanion: (name: string) => string;
+  renameCompanion: (from: string, to: string) => void;
+  removeCompanion: (name: string) => void;
   updateSettings: (s: Partial<Settings>) => void;
   importData: (data: unknown) => void;
   resetAll: () => void;
@@ -40,8 +47,12 @@ export interface RemotePatch {
   order?: string[];
   favActors?: Record<string, FavPerson>;
   favDirectors?: Record<string, FavPerson>;
+  companions?: string[];
   settings?: Partial<Settings>;
 }
+
+const sameName = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' }) === 0;
+export const cleanName = (s: string) => s.trim().replace(/\s+/g, ' ').slice(0, 30);
 
 /** Deja en `order` solo las vistas, sin repetidos, y agrega al final las que falten. */
 function normalizeOrder(order: string[], entries: Record<string, Entry>) {
@@ -65,6 +76,7 @@ const emptyLibrary = {
   order: [] as string[],
   favActors: {} as Record<string, FavPerson>,
   favDirectors: {} as Record<string, FavPerson>,
+  companions: [] as string[],
 };
 
 export const useStore = create<LibraryState>()(
@@ -86,6 +98,7 @@ export const useStore = create<LibraryState>()(
             addedAt: prev?.status === status ? prev.addedAt : now,
             seenAt: status === 'seen' ? (prev?.status === 'seen' ? prev.seenAt : now) : undefined,
             updatedAt: now,
+            withWho: status !== 'skip' && prev?.withWho?.length ? prev.withWho : undefined,
             snap: { ...prev?.snap, ...snap },
           };
           let order = s.order;
@@ -148,6 +161,49 @@ export const useStore = create<LibraryState>()(
         return added;
       },
 
+      setWithWho: (key, names) =>
+        set((s) => {
+          const e = s.entries[key];
+          if (!e) return {};
+          return { entries: { ...s.entries, [key]: { ...e, withWho: names.length ? names : undefined, updatedAt: Date.now() } } };
+        }),
+
+      addCompanion: (raw) => {
+        const name = cleanName(raw);
+        const existing = get().companions.find((c) => sameName(c, name));
+        if (existing || !name) return existing ?? '';
+        set((s) => ({ companions: [...s.companions, name].sort((a, b) => a.localeCompare(b, 'es')) }));
+        return name;
+      },
+
+      renameCompanion: (from, raw) =>
+        set((s) => {
+          const to = cleanName(raw);
+          if (!to || from === to) return {};
+          const merged = s.companions.find((c) => c !== from && sameName(c, to)); // si ya existe, se fusionan
+          const target = merged ?? to;
+          const now = Date.now();
+          const entries = { ...s.entries };
+          for (const e of Object.values(s.entries)) {
+            if (!e.withWho?.includes(from)) continue;
+            entries[e.key] = { ...e, withWho: [...new Set(e.withWho.map((w) => (w === from ? target : w)))], updatedAt: now };
+          }
+          const companions = merged ? s.companions.filter((c) => c !== from) : s.companions.map((c) => (c === from ? to : c));
+          return { entries, companions: companions.sort((a, b) => a.localeCompare(b, 'es')) };
+        }),
+
+      removeCompanion: (name) =>
+        set((s) => {
+          const now = Date.now();
+          const entries = { ...s.entries };
+          for (const e of Object.values(s.entries)) {
+            if (!e.withWho?.includes(name)) continue;
+            const rest = e.withWho.filter((w) => w !== name);
+            entries[e.key] = { ...e, withWho: rest.length ? rest : undefined, updatedAt: now };
+          }
+          return { entries, companions: s.companions.filter((c) => c !== name) };
+        }),
+
       updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
 
       importData: (data) => {
@@ -167,6 +223,7 @@ export const useStore = create<LibraryState>()(
           order,
           favActors: d.favActors ?? {},
           favDirectors: d.favDirectors ?? {},
+          companions: Array.isArray(d.companions) ? d.companions : s.companions,
           settings: { ...s.settings, ...(d.settings ?? {}) },
         }));
       },
@@ -183,6 +240,7 @@ export const useStore = create<LibraryState>()(
             order: normalizeOrder(patch.order ?? s.order, entries),
             favActors: patch.favActors ?? s.favActors,
             favDirectors: patch.favDirectors ?? s.favDirectors,
+            companions: patch.companions ?? s.companions,
             settings: patch.settings ? { ...s.settings, ...patch.settings } : s.settings,
           };
         }),
@@ -196,11 +254,12 @@ export const useStore = create<LibraryState>()(
         order: s.order,
         favActors: s.favActors,
         favDirectors: s.favDirectors,
+        companions: s.companions,
         settings: s.settings,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<LibraryState>;
-        return { ...current, ...p, settings: { ...defaultSettings, ...(p.settings ?? {}) } };
+        return { ...current, ...p, companions: p.companions ?? [], settings: { ...defaultSettings, ...(p.settings ?? {}) } };
       },
     },
   ),
@@ -218,6 +277,7 @@ export function exportData() {
     order: s.order,
     favActors: s.favActors,
     favDirectors: s.favDirectors,
+    companions: s.companions,
     settings: { region: s.settings.region, includeTv: s.settings.includeTv },
   };
 }

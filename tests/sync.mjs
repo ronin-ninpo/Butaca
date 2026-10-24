@@ -211,6 +211,22 @@ try {
   await pc.page.evaluate(() => window.dispatchEvent(new Event('online')));
   await waitFor(cel, hasEntry, ['movie:13', 'any'], 'al volver la conexión, lo marcado offline llega al celular', 30000);
 
+  console.log('Con quién verla');
+  await pc.page.goto(BASE + '#/mis/quiero');
+  await pc.page.click('.mrow:has-text("Forrest Gump") .with-line');
+  await pc.page.fill('.sheet input[aria-label="Nueva etiqueta"]', 'Belén');
+  await pc.page.click('.sheet button:has-text("Agregar")');
+  await pc.page.click('.sheet button:has-text("Listo")');
+  await waitFor(
+    cel,
+    () => {
+      const st = JSON.parse(localStorage.getItem('butaca-library')).state;
+      return st.entries['movie:13']?.withWho?.includes('Belén') && st.companions.includes('Belén');
+    },
+    null,
+    'la etiqueta «Belén» y su asignación llegan al celular',
+  );
+
   console.log('Dispositivo nuevo, sin claves ni listas');
   nuevo = await device('Nuevo');
   await nuevo.page.goto(BASE);

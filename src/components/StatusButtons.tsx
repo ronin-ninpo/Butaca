@@ -11,6 +11,7 @@ export function StatusButtons({ target }: { target: Target }) {
   const k = keyOf(info.type, info.id);
   const e = useStore((s) => s.entries[k]);
   const openRate = useSheets((s) => s.openRate);
+  const openWith = useSheets((s) => s.openWith);
   const st = e?.status;
   return (
     <>
@@ -28,6 +29,22 @@ export function StatusButtons({ target }: { target: Target }) {
           No me interesa
         </button>
       </div>
+      {st === 'want' && (
+        <button className="card row" style={{ marginTop: 10, width: '100%', textAlign: 'left' }} onClick={() => openWith(target)}>
+          <Icon name="users" size={20} />
+          <span className="grow small">
+            {e?.withWho?.length ? (
+              <>
+                <span className="muted">Verla con </span>
+                <b>{e.withWho.join(', ')}</b>
+              </>
+            ) : (
+              <span className="muted">¿Con quién la querés ver?</span>
+            )}
+          </span>
+          <Icon name="chevron" size={18} />
+        </button>
+      )}
       {st === 'seen' && (
         <button className="card row" style={{ marginTop: 10, width: '100%', justifyContent: 'space-between' }} onClick={() => openRate(target)}>
           <span className="muted small">{e?.rating || e?.legend ? 'Tu calificación' : 'Todavía no la calificaste'}</span>

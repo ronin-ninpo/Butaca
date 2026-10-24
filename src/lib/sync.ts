@@ -178,7 +178,8 @@ const pending = { upserts: new Set<string>(), deletes: new Set<string>(), meta: 
 
 function loadMeta(): LocalMeta | null {
   try {
-    return JSON.parse(ls.get(META) ?? 'null');
+    const m = JSON.parse(ls.get(META) ?? 'null');
+    return m ? { order: 0, favActors: 0, favDirectors: 0, companions: 0, settings: 0, ...m } : null;
   } catch {
     return null;
   }
@@ -307,6 +308,7 @@ function onLocalChange(state: LibState, prev: LibState) {
   if (state.order !== prev.order) touch('order');
   if (state.favActors !== prev.favActors) touch('favActors');
   if (state.favDirectors !== prev.favDirectors) touch('favDirectors');
+  if (state.companions !== prev.companions) touch('companions');
   if (JSON.stringify(syncedSettings(state.settings)) !== JSON.stringify(syncedSettings(prev.settings))) touch('settings');
   if (dirty) {
     saveMeta();
@@ -332,7 +334,7 @@ async function flush() {
   for (const k of pending.deletes) ops.push({ ref: f.doc(db, 'users', uid, 'entries', k), data: { key: k, deleted: true, updatedAt: now } });
   if (pending.meta.size) {
     const data: Record<string, unknown> = {};
-    const values = { order: s.order, favActors: s.favActors, favDirectors: s.favDirectors, settings: syncedSettings(s.settings) };
+    const values = { order: s.order, favActors: s.favActors, favDirectors: s.favDirectors, companions: s.companions, settings: syncedSettings(s.settings) };
     for (const m of pending.meta) {
       data[m] = values[m];
       data[`${m}At`] = meta[m] || now;
