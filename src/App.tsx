@@ -12,17 +12,19 @@ import { MediaDetail } from './screens/MediaDetail';
 import { PersonDetail } from './screens/PersonDetail';
 import { Settings } from './screens/Settings';
 import { Welcome } from './screens/Welcome';
+import { Account } from './screens/Account';
 
 function Layout() {
   const hasKey = useStore((s) => !!s.settings.tmdbKey);
   const { pathname } = useLocation();
-  if (!hasKey && pathname !== '/bienvenida') return <Navigate to="/bienvenida" replace />;
+  const open = pathname === '/bienvenida' || pathname === '/cuenta';
+  if (!hasKey && !open) return <Navigate to="/bienvenida" replace />;
   return (
     <div className="app">
       <main className="main">
         <Outlet />
       </main>
-      {hasKey && pathname !== '/bienvenida' && <TabBar />}
+      {hasKey && !open && <TabBar />}
       <Sheets />
       <ToastHost />
       <ScrollRestoration />
@@ -43,6 +45,7 @@ export const router = createHashRouter([
       { path: '/p/:id', element: <PersonDetail /> },
       { path: '/ajustes', element: <Settings /> },
       { path: '/bienvenida', element: <Welcome /> },
+      { path: '/cuenta', element: <Account /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

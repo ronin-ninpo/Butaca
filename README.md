@@ -8,7 +8,8 @@ App para el celular (web instalable / PWA) para descubrir películas y series, a
 - **Ficha**: título en español latino, sinopsis oficial sin spoilers, año, duración, calificación por edad, **nota de IMDb**, dirección, reparto, tráiler y dónde verla (Netflix, Prime, Disney+, Max, etc.).
 - **Mis pelis**: vistas, *Quiero ver* y descartadas. Las vistas se ordenan por estrellas y **dentro de cada grupo de estrellas las podés arrastrar** para armar tu ranking.
 - **Favoritos**: actores y directores marcados a mano, más un ranking automático según cómo calificaste lo que viste.
-- Todo se guarda **en el celular**. En Ajustes hay respaldo para exportar e importar.
+- **Cuenta opcional (email y contraseña)**: con sesión iniciada, listas, calificaciones, favoritos y claves se sincronizan entre la PC y el celular (Firebase). Sin cuenta, todo queda solo en el dispositivo. En Ajustes también hay respaldo para exportar e importar.
+- Calificación de **½ a 5 estrellas** (1 a 10) y marca de **Leyenda** para las favoritas de siempre, que encabezan el ranking.
 
 ## Claves necesarias (gratis)
 
@@ -17,6 +18,13 @@ App para el celular (web instalable / PWA) para descubrir películas y series, a
 
 Las claves se cargan la primera vez que abrís la app y quedan solo en tu celular.
 
+## Cuenta y sincronización (Firebase)
+
+- Proyecto de Firebase: `butaca-27341` (plan gratuito Spark). La configuración web está en `src/lib/sync.ts`; no es secreta.
+- **Authentication**: proveedor *Correo electrónico/contraseña* activado.
+- **Firestore**: cada usuario guarda `users/{uid}` (orden del ranking, favoritos, ajustes y claves) y `users/{uid}/entries/{tipo:id}` (un documento por título). Las reglas de `firestore.rules` permiten leer y escribir solo al dueño; si se cambian, hay que pegarlas en la consola de Firebase (Firestore → Reglas).
+- Al iniciar sesión se juntan las listas del dispositivo y de la nube (gana el cambio más reciente de cada título). Firebase se carga solo cuando hay sesión.
+
 ## Desarrollo
 
 ```bash
@@ -24,6 +32,10 @@ npm install
 npm run dev        # servidor local
 npm run build      # genera dist/ (lo que se publica)
 npm run test:e2e   # prueba de punta a punta con TMDB/OMDb simulados (requiere build y Playwright)
+
+# Sincronización entre dispositivos, contra los emuladores de Firebase (requiere Java):
+npx firebase-tools emulators:start --only auth,firestore --project demo-butaca   # en otra terminal
+npm run test:sync
 ```
 
 ## Publicar

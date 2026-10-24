@@ -7,6 +7,9 @@ import { TopBar } from '../components/Bars';
 import { KeyForm } from '../components/KeyForm';
 import { Switch } from '../components/Misc';
 import { Icon } from '../components/Icon';
+import { SyncBadge } from '../components/SyncBadge';
+import { useSync } from '../lib/sync';
+import { Link } from 'react-router-dom';
 
 const REGIONS: [string, string][] = [
   ['AR', 'Argentina'],
@@ -34,6 +37,7 @@ export function Settings() {
   const [keysOpen, setKeysOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const install = useInstallPrompt();
+  const account = useSync((s) => s.email);
   const n = Object.keys(entries).length;
 
   const doExport = async () => {
@@ -73,6 +77,19 @@ export function Settings() {
       <TopBar title="Ajustes" back />
       <div className="page">
         <section className="section" style={{ marginTop: 6 }}>
+          <h2 className="section-title">Cuenta y sincronización</h2>
+          <Link to="/cuenta" className="card row" style={{ justifyContent: 'space-between' }}>
+            <div className="grow">
+              <div style={{ fontWeight: 650 }} className="ellipsis">
+                {account ?? 'Ingresar o crear cuenta'}
+              </div>
+              {account ? <SyncBadge /> : <div className="muted small">Para tener tus listas en la PC y en el celular.</div>}
+            </div>
+            <Icon name="chevron" size={20} />
+          </Link>
+        </section>
+
+        <section className="section">
           <h2 className="section-title">Claves de acceso</h2>
           <div className="card">
             <div className="row">
@@ -140,7 +157,9 @@ export function Settings() {
         <section className="section">
           <h2 className="section-title">Respaldo</h2>
           <p className="muted small">
-            Tus listas viven solo en este celular. Guardá un respaldo de vez en cuando (o para pasarlas a otro teléfono). No incluye tus claves.
+            {account
+              ? 'Tus listas ya se guardan en tu cuenta. Igual podés bajar una copia en un archivo cuando quieras. No incluye tus claves.'
+              : 'Sin cuenta, tus listas viven solo en este dispositivo. Guardá un respaldo de vez en cuando (o para pasarlas a otro). No incluye tus claves.'}
           </p>
           <div className="row" style={{ marginTop: 10 }}>
             <button className="btn grow" onClick={doExport} disabled={n === 0}>

@@ -49,6 +49,8 @@ export interface Entry {
   legend?: boolean;
   addedAt: number;
   seenAt?: number;
+  /** Último cambio (para sincronizar entre dispositivos) */
+  updatedAt?: number;
   snap: Snapshot;
 }
 

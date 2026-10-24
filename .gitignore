@@ -3,3 +3,6 @@ dist
 capturas
 *.log
 butaca-web.zip
+firebase-debug.log
+firestore-debug.log
+.firebase
