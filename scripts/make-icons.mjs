@@ -1,0 +1,38 @@
+// Genera los íconos PNG de la app a partir de un SVG (usa el Chromium de Playwright).
+import { writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+const { chromium } = createRequire(import.meta.url)('playwright');
+
+const seat = `
+  <defs>
+    <linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6a5e"/><stop offset="1" stop-color="#e5463b"/></linearGradient>
+    <linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d63f35"/><stop offset="1" stop-color="#b8342b"/></linearGradient>
+  </defs>
+  <rect x="160" y="112" width="192" height="196" rx="44" fill="url(#b)"/>
+  <path d="M256 158l15.6 31.6 34.9 5.1-25.2 24.6 5.9 34.7L256 237.6l-31.2 16.4 5.9-34.7-25.2-24.6 34.9-5.1z" fill="#ffc24a"/>
+  <rect x="138" y="292" width="236" height="76" rx="30" fill="url(#c)"/>
+  <rect x="104" y="236" width="56" height="156" rx="24" fill="#ff7b70"/>
+  <rect x="352" y="236" width="56" height="156" rx="24" fill="#ff7b70"/>
+  <rect x="176" y="362" width="26" height="46" rx="8" fill="#8d2a23"/>
+  <rect x="310" y="362" width="26" height="46" rx="8" fill="#8d2a23"/>`;
+
+const bg = `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b1a33"/><stop offset="1" stop-color="#0f0d12"/></linearGradient></defs>`;
+
+const icon = (round) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${bg}<rect width="512" height="512" rx="${round ? 112 : 0}" fill="url(#g)"/><g transform="translate(0 6)">${seat}</g></svg>`;
+const maskable = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${bg}<rect width="512" height="512" fill="url(#g)"/><g transform="translate(76.8 82) scale(0.7)">${seat}</g></svg>`;
+
+writeFileSync('public/favicon.svg', icon(true));
+
+const browser = await chromium.launch();
+const page = await browser.newPage();
+async function png(svg, size, out) {
+  await page.setViewportSize({ width: size, height: size });
+  await page.setContent(`<html><body style="margin:0;background:transparent">${svg.replace('<svg ', `<svg width="${size}" height="${size}" `)}</body></html>`);
+  await page.screenshot({ path: out, omitBackground: true, clip: { x: 0, y: 0, width: size, height: size } });
+}
+await png(icon(true), 192, 'public/icon-192.png');
+await png(icon(true), 512, 'public/icon-512.png');
+await png(maskable, 512, 'public/icon-maskable-512.png');
+await png(icon(false), 180, 'public/apple-touch-icon.png');
+await browser.close();
+console.log('íconos listos');
