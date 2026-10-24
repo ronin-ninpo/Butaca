@@ -47,11 +47,16 @@ export function StatusButtons({ target }: { target: Target }) {
       )}
       {st === 'seen' && (
         <button className="card row" style={{ marginTop: 10, width: '100%', justifyContent: 'space-between' }} onClick={() => openRate(target)}>
-          <span className="muted small">{e?.rating || e?.legend ? 'Tu calificación' : 'Todavía no la calificaste'}</span>
-          <span className="row" style={{ gap: 10 }}>
+          <span className="muted small">{e?.rating || e?.legend || e?.classic ? 'Tu calificación' : 'Todavía no la calificaste'}</span>
+          <span className="row wrap" style={{ gap: 10, justifyContent: 'flex-end' }}>
             {e?.legend && (
               <span className="legend-tag">
                 <Icon name="crown" size={16} fill /> Leyenda
+              </span>
+            )}
+            {e?.classic && (
+              <span className="classic-tag">
+                <Icon name="award" size={16} /> Clásico
               </span>
             )}
             <Stars value={e?.rating ?? 0} size={22} />

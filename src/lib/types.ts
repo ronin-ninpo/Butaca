@@ -47,6 +47,8 @@ export interface Entry {
   rating?: number;
   /** Una de mis favoritas de siempre: va arriba de todo en "Mis favoritas" */
   legend?: boolean;
+  /** Clásico: una película que marcó una época (no cambia el ranking) */
+  classic?: boolean;
   /** Con quién la querés ver (nombres de etiquetas) */
   withWho?: string[];
   addedAt: number;
@@ -61,5 +63,11 @@ export interface FavPerson extends PersonRef {
 }
 
 export type FavKind = 'actor' | 'director';
+
+/** Marcas especiales al calificar */
+export interface Marks {
+  legend?: boolean;
+  classic?: boolean;
+}
 
 export const keyOf = (type: MediaType, id: number) => `${type}:${id}`;

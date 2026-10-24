@@ -44,11 +44,13 @@ export function Sheets() {
   const entry = useStore((s) => (key ? s.entries[key] : undefined));
   const [stars, setStars] = useState(0);
   const [legend, setLegend] = useState(false);
+  const [classic, setClassic] = useState(false);
 
   useEffect(() => {
     const seen = entry?.status === 'seen';
     setStars(seen ? entry.rating ?? 0 : 0);
     setLegend(seen ? !!entry.legend : false);
+    setClassic(seen ? !!entry.classic : false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, key]);
 
@@ -62,7 +64,7 @@ export function Sheets() {
     setLegend(!legend);
   };
   const save = () => {
-    mark(target, 'seen', stars || undefined, legend);
+    mark(target, 'seen', stars || undefined, { legend, classic });
     close();
   };
 
@@ -108,7 +110,15 @@ export function Sheets() {
               </span>
               <span className="check">{legend && <Icon name="check" size={14} stroke={3} />}</span>
             </button>
-            <button className="btn primary block" style={{ marginTop: 14 }} onClick={save} disabled={!stars && !legend}>
+            <button className={`legend-btn classic ${classic ? 'on' : ''}`} aria-pressed={classic} onClick={() => setClassic(!classic)}>
+              <Icon name="award" size={26} />
+              <span>
+                <b>Clásico</b>
+                <span className="small">Una película que marcó una época</span>
+              </span>
+              <span className="check">{classic && <Icon name="check" size={14} stroke={3} />}</span>
+            </button>
+            <button className="btn primary block" style={{ marginTop: 14 }} onClick={save} disabled={!stars && !legend && !classic}>
               Guardar
             </button>
             <div className="opts">

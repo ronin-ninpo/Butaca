@@ -58,12 +58,13 @@ const assert = (cond, msg) => {
 const lib = () => page.evaluate(() => JSON.parse(localStorage.getItem('butaca-library') ?? '{}').state);
 const cardTitle = () => page.locator('.rec-card h2').first().textContent();
 /** Califica en la hoja abierta: toca la mitad izquierda (x,5) o derecha (entera) de la estrella y guarda. */
-async function rateInSheet(value, legend = false) {
+async function rateInSheet(value, legend = false, classic = false) {
   await page.waitForTimeout(300); // que termine la animación de la hoja
   const star = page.locator('.sheet .stars-input > span').nth(Math.ceil(value) - 1);
   const b = await star.boundingBox();
   await page.mouse.click(b.x + b.width * (value % 1 ? 0.25 : 0.75), b.y + b.height / 2);
-  if (legend) await page.click('.sheet .legend-btn');
+  if (legend) await page.click('.sheet .legend-btn:not(.classic)');
+  if (classic) await page.click('.sheet .legend-btn.classic');
   await page.click('.sheet button:has-text("Guardar")');
 }
 async function waitNewCard(prev) {
@@ -93,21 +94,25 @@ try {
 
   const ratings = [5, 4.5, 4, 5, 3, 2.5, 5];
   const LEGEND_AT = 3;
-  let legendTitle;
+  const CLASSIC_AT = 4;
+  let legendTitle, classicTitle;
   for (const [i, r] of ratings.entries()) {
     const prev = await cardTitle();
     if (i === LEGEND_AT) legendTitle = prev;
+    if (i === CLASSIC_AT) classicTitle = prev;
     await page.click('button[aria-label="Ya la vi"]');
     await page.waitForSelector('.sheet');
     if (i === 1) {
       await page.waitForTimeout(300);
       const b = await page.locator('.sheet .stars-input > span').nth(3).boundingBox();
       await page.mouse.click(b.x + b.width * 0.25, b.y + b.height / 2);
-      await page.click('.sheet .legend-btn');
+      await page.click('.sheet .legend-btn:not(.classic)');
+      await page.click('.sheet .legend-btn.classic');
       await shot('calificar');
-      await page.click('.sheet .legend-btn');
+      await page.click('.sheet .legend-btn:not(.classic)');
+      await page.click('.sheet .legend-btn.classic');
     }
-    await rateInSheet(r, i === LEGEND_AT);
+    await rateInSheet(r, i === LEGEND_AT, i === CLASSIC_AT);
     await waitNewCard(prev);
   }
   let s = await lib();
@@ -116,6 +121,8 @@ try {
   assert(seenNow.some((e) => e.rating === 4.5) && seenNow.some((e) => e.rating === 2.5), 'se guardan las medias estrellas (4,5 y 2,5)');
   const leg = seenNow.find((e) => e.legend);
   assert(leg && leg.snap.title === legendTitle && leg.rating === 5, `«${legendTitle}» quedó marcada como Leyenda`);
+  const cla = seenNow.filter((e) => e.classic);
+  assert(cla.length === 1 && cla[0].snap.title === classicTitle && cla[0].rating === 3 && !cla[0].legend, `«${classicTitle}» quedó como Clásico con sus 3 estrellas (sin ser Leyenda)`);
 
   let prev = await cardTitle();
   await page.click('button[aria-label="Quiero verla"]');
@@ -223,6 +230,11 @@ try {
   assert((await page.locator('.group').first().getAttribute('data-group')) === 'L', 'las leyendas aparecen primero en «Mis favoritas»');
   assert((await page.locator('.group[data-group="L"] .mrow .t').first().textContent()) === legendTitle, 'la leyenda es la #1 del ranking');
   assert((await page.locator('.group[data-group="4.5"] .mrow').count()) === 1, 'grupo propio para 4,5 estrellas');
+  assert((await page.locator('.group[data-group="3"] .classic-tag').count()) === 1, 'el clásico muestra su medalla y sigue en su grupo de estrellas');
+  await page.click('.chips .chip:has-text("Clásicos")');
+  const onlyClassics = await page.locator('.mrow .t').allTextContents();
+  assert(onlyClassics.length === 1 && onlyClassics[0] === classicTitle, 'el filtro «Clásicos» muestra solo los clásicos');
+  await page.click('.chips .chip:has-text("Clásicos")');
   const groupRows = page.locator('.group[data-group="5"] .mrow');
   const before = await groupRows.locator('.t').allTextContents();
   assert(before.length >= 2, `grupo de 5 estrellas con ${before.length} películas`);

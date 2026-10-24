@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { Entry, FavKind, FavPerson, PersonRef, Snapshot, Status } from './types';
+import type { Entry, FavKind, FavPerson, Marks, PersonRef, Snapshot, Status } from './types';
 import { keyOf } from './types';
 import { groupOf } from './rating';
 
@@ -22,8 +22,8 @@ interface LibraryState {
   companions: string[];
   settings: Settings;
 
-  setStatus: (snap: Snapshot, status: Status, rating?: number, legend?: boolean) => void;
-  setRating: (key: string, rating: number | undefined, legend?: boolean) => void;
+  setStatus: (snap: Snapshot, status: Status, rating?: number, marks?: Marks) => void;
+  setRating: (key: string, rating: number | undefined, marks?: Marks) => void;
   updateSnap: (key: string, snap: Partial<Snapshot>) => void;
   remove: (key: string) => void;
   restore: (entry: Entry, orderIndex?: number) => void;
@@ -85,7 +85,7 @@ export const useStore = create<LibraryState>()(
       ...emptyLibrary,
       settings: { ...defaultSettings },
 
-      setStatus: (snap, status, rating, legend) =>
+      setStatus: (snap, status, rating, marks = {}) =>
         set((s) => {
           const key = keyOf(snap.type, snap.id);
           const prev = s.entries[key];
@@ -94,7 +94,8 @@ export const useStore = create<LibraryState>()(
             key,
             status,
             rating: status === 'seen' ? rating : undefined,
-            legend: status === 'seen' && legend ? true : undefined,
+            legend: status === 'seen' && marks.legend ? true : undefined,
+            classic: status === 'seen' && marks.classic ? true : undefined,
             addedAt: prev?.status === status ? prev.addedAt : now,
             seenAt: status === 'seen' ? (prev?.status === 'seen' ? prev.seenAt : now) : undefined,
             updatedAt: now,
@@ -107,11 +108,11 @@ export const useStore = create<LibraryState>()(
           return { entries: { ...s.entries, [key]: entry }, order };
         }),
 
-      setRating: (key, rating, legend) =>
+      setRating: (key, rating, marks = {}) =>
         set((s) => {
           const e = s.entries[key];
           if (!e) return {};
-          const next: Entry = { ...e, status: 'seen', rating, legend: legend ? true : undefined, updatedAt: Date.now() };
+          const next: Entry = { ...e, status: 'seen', rating, legend: marks.legend ? true : undefined, classic: marks.classic ? true : undefined, updatedAt: Date.now() };
           // Si cambia de grupo (estrellas o leyenda), va al final del grupo nuevo.
           const order = groupOf(e) !== groupOf(next) || !s.order.includes(key) ? [...s.order.filter((k) => k !== key), key] : s.order;
           return { entries: { ...s.entries, [key]: next }, order };

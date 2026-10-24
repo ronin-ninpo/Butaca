@@ -12,16 +12,18 @@ export function StatusBadge({ k }: { k: string }) {
   if (!e) return null;
   if (e.status === 'seen' && e.legend)
     return (
-      <span className="status-badge legend" title="Leyenda">
+      <span className="status-badge legend" title={e.classic ? 'Leyenda · Clásico' : 'Leyenda'}>
         <Icon name="crown" size={12} fill stroke={2} />
         {e.rating ? fmtRating(e.rating) : ''}
+        {e.classic && <Icon name="award" size={12} stroke={2.5} />}
       </span>
     );
   if (e.status === 'seen')
     return (
-      <span className="status-badge seen" title="Vista">
+      <span className="status-badge seen" title={e.classic ? 'Vista · Clásico' : 'Vista'}>
         <Icon name={e.rating ? 'star' : 'check'} size={11} fill stroke={3} />
-        {e.rating ? fmtRating(e.rating) : 'Vista'}
+        {e.rating ? fmtRating(e.rating) : e.classic ? '' : 'Vista'}
+        {e.classic && <Icon name="award" size={12} stroke={2.5} />}
       </span>
     );
   if (e.status === 'want')

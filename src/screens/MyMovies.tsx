@@ -61,7 +61,23 @@ export function MyMovies() {
   );
 }
 
-function Filters({ typeF, setTypeF, genreF, setGenreF, list }: { typeF: TypeF; setTypeF: (t: TypeF) => void; genreF: number | null; setGenreF: (g: number | null) => void; list: Entry[] }) {
+function Filters({
+  typeF,
+  setTypeF,
+  genreF,
+  setGenreF,
+  list,
+  classicF,
+  setClassicF,
+}: {
+  typeF: TypeF;
+  setTypeF: (t: TypeF) => void;
+  genreF: number | null;
+  setGenreF: (g: number | null) => void;
+  list: Entry[];
+  classicF?: boolean;
+  setClassicF?: (v: boolean) => void;
+}) {
   const includeTv = useStore((s) => s.settings.includeTv);
   const genreMap = useGenreMap();
   const hasTv = list.some((e) => e.snap.type === 'tv');
@@ -70,9 +86,18 @@ function Filters({ typeF, setTypeF, genreF, setGenreF, list }: { typeF: TypeF; s
     for (const e of list) for (const g of e.snap.genreIds) m.set(g, (m.get(g) ?? 0) + 1);
     return [...m.entries()].filter(([g]) => genreMap.has(g)).sort((a, b) => b[1] - a[1]);
   }, [list, genreMap]);
+  const classics = list.filter((e) => e.classic).length;
   if (list.length < 2) return null;
   return (
     <div className="chips" style={{ marginTop: 10 }}>
+      {setClassicF && classics > 0 && (
+        <>
+          <button className={`chip ${classicF ? 'on' : ''}`} aria-pressed={!!classicF} onClick={() => setClassicF(!classicF)}>
+            <Icon name="award" size={15} /> Clásicos <span className="faint">{classics}</span>
+          </button>
+          <span style={{ width: 1, background: 'var(--line)', flex: 'none' }} />
+        </>
+      )}
       {includeTv && hasTv && (
         <>
           {(['all', 'movie', 'tv'] as TypeF[]).map((t) => (
@@ -102,11 +127,14 @@ function Seen() {
   const [sort, setSort] = useState<SeenSort>('fav');
   const [typeF, setTypeF] = useState<TypeF>('all');
   const [genreF, setGenreF] = useState<number | null>(null);
+  const [classicF, setClassicF] = useState(false);
 
   const favs = useMemo(() => favoritesOrder(entries, order), [entries, order]);
   const rank = useMemo(() => new Map(favs.filter((e) => e.rating || e.legend).map((e, i) => [e.key, i + 1])), [favs]);
-  const filtered = favs.filter((e) => (typeF === 'all' || e.snap.type === typeF) && (genreF === null || e.snap.genreIds.includes(genreF)));
-  const filtering = typeF !== 'all' || genreF !== null;
+  const filtered = favs.filter(
+    (e) => (typeF === 'all' || e.snap.type === typeF) && (genreF === null || e.snap.genreIds.includes(genreF)) && (!classicF || e.classic),
+  );
+  const filtering = typeF !== 'all' || genreF !== null || classicF;
   const sorted =
     sort === 'fav'
       ? filtered
@@ -169,7 +197,7 @@ function Seen() {
           </select>
         </label>
       </div>
-      <Filters typeF={typeF} setTypeF={setTypeF} genreF={genreF} setGenreF={setGenreF} list={favs} />
+      <Filters typeF={typeF} setTypeF={setTypeF} genreF={genreF} setGenreF={setGenreF} list={favs} classicF={classicF} setClassicF={setClassicF} />
 
       {sort === 'fav' && (
         <p className="faint small" style={{ marginTop: 10 }}>
@@ -273,10 +301,15 @@ function SeenRow({ e, rankNo, handle, rowRef, style, dragging }: { e: Entry; ran
           </span>
         </div>
         <button style={{ marginTop: 5 }} onClick={() => openRate(summaryFromSnap(s))} aria-label="Cambiar calificación">
-          {e.rating || e.legend ? (
+          {e.rating || e.legend || e.classic ? (
             <span className="row" style={{ gap: 8 }}>
               {e.legend && <Icon name="crown" size={16} fill className="legend-tag" />}
-              <Stars value={e.rating ?? 0} size={16} />
+              {e.rating ? <Stars value={e.rating} size={16} /> : null}
+              {e.classic && (
+                <span className="classic-tag">
+                  <Icon name="award" size={15} /> Clásico
+                </span>
+              )}
             </span>
           ) : (
             <span className="link small">Calificar</span>
