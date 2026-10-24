@@ -5,15 +5,23 @@ import { keyOf, type MediaSummary } from '../lib/types';
 import { Poster } from './Poster';
 import { RatingBadge } from './RatingBadge';
 import { Icon } from './Icon';
+import { fmtRating } from '../lib/rating';
 
 export function StatusBadge({ k }: { k: string }) {
   const e = useStore((s) => s.entries[k]);
   if (!e) return null;
+  if (e.status === 'seen' && e.legend)
+    return (
+      <span className="status-badge legend" title="Leyenda">
+        <Icon name="crown" size={12} fill stroke={2} />
+        {e.rating ? fmtRating(e.rating) : ''}
+      </span>
+    );
   if (e.status === 'seen')
     return (
       <span className="status-badge seen" title="Vista">
         <Icon name={e.rating ? 'star' : 'check'} size={11} fill stroke={3} />
-        {e.rating ?? 'Vista'}
+        {e.rating ? fmtRating(e.rating) : 'Vista'}
       </span>
     );
   if (e.status === 'want')

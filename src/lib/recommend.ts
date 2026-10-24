@@ -3,6 +3,7 @@ import { getCredits, getGenres, list, recommendationsFor, toSummaries } from './
 import { autoFavorites } from './favorites';
 import type { Entry, FavPerson, MediaSummary, MediaType } from './types';
 import { keyOf } from './types';
+import { tasteScore } from './rating';
 
 export interface Candidate {
   item: MediaSummary;
@@ -30,7 +31,7 @@ export function genreAffinity(entries: Record<string, Entry>) {
   const acc = new Map<number, { sum: number; n: number }>();
   for (const e of Object.values(entries)) {
     let delta: number | undefined;
-    if (e.status === 'seen' && e.rating) delta = e.rating - 3;
+    if (e.status === 'seen' && (e.rating || e.legend)) delta = tasteScore(e) - 3;
     else if (e.status === 'want') delta = 0.6;
     else if (e.status === 'skip') delta = -0.4;
     if (delta === undefined) continue;
@@ -61,7 +62,7 @@ export async function buildRecommendations(input: RecInput): Promise<RecResult> 
   const genreNames = new Map<number, string>();
   await Promise.allSettled(types.map((t) => getGenres(t).then((gs) => gs.forEach((g) => genreNames.set(g.id, g.name)))));
   const all = Object.values(entries);
-  const rated = all.filter((e) => e.status === 'seen' && e.rating);
+  const rated = all.filter((e) => e.status === 'seen' && (e.rating || e.legend));
   const wants = all.filter((e) => e.status === 'want');
   const exclude = new Set(Object.keys(entries));
   const typeOk = (t: MediaType) => types.includes(t);
@@ -83,10 +84,19 @@ export async function buildRecommendations(input: RecInput): Promise<RecResult> 
 
   // 1) Semillas: lo que calificaste alto (y lo que querés ver), más reciente primero.
   const byRecent = (a: Entry, b: Entry) => (b.seenAt ?? b.addedAt) - (a.seenAt ?? a.addedAt);
-  const loved = rated.filter((e) => (e.rating ?? 0) >= 4).sort(byRecent);
-  const hated = rated.filter((e) => (e.rating ?? 0) <= 2).sort(byRecent).slice(0, 4);
+  // Primero las leyendas, después lo más reciente.
+  const loved = rated
+    .filter((e) => e.legend || (e.rating ?? 0) >= 4)
+    .sort((a, b) => Number(!!b.legend) - Number(!!a.legend) || byRecent(a, b));
+  const hated = rated.filter((e) => !e.legend && (e.rating ?? 0) <= 2).sort(byRecent).slice(0, 4);
   const seeds = [
-    ...shuffleTail(loved, 6).slice(0, 10).map((e) => ({ e, w: e.rating === 5 ? 1 : 0.6, why: `Porque te gustó «${e.snap.title}»` })),
+    ...shuffleTail(loved, 6)
+      .slice(0, 10)
+      .map((e) => ({
+        e,
+        w: e.legend ? 1.3 : (e.rating ?? 0) >= 4.5 ? 1 : 0.6,
+        why: e.legend ? `Porque «${e.snap.title}» es una de tus leyendas` : `Porque te gustó «${e.snap.title}»`,
+      })),
     ...shuffleTail(wants.sort(byRecent), 2).slice(0, 4).map((e) => ({ e, w: 0.35, why: `Porque querés ver «${e.snap.title}»` })),
   ];
 
@@ -101,7 +111,7 @@ export async function buildRecommendations(input: RecInput): Promise<RecResult> 
   for (const e of hated) {
     tasks.push(
       recommendationsFor(e.snap.type, e.snap.id).then((r) => {
-        r.items.forEach((it) => add(it, e.rating === 1 ? -0.7 : -0.35));
+        r.items.forEach((it) => add(it, (e.rating ?? 0) <= 1 ? -0.7 : -0.35));
       }),
     );
   }

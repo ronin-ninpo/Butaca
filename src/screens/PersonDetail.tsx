@@ -11,6 +11,7 @@ import { FavButton } from '../components/People';
 import { MediaGrid } from '../components/MediaCard';
 import { ErrorBox, Segmented, Spinner } from '../components/Misc';
 import { Stars } from '../components/Stars';
+import { fmtAvg, roundHalf } from '../lib/rating';
 
 const NON_FICTION = new Set([10763, 10764, 10767, 99]);
 
@@ -107,7 +108,7 @@ export function PersonDetail() {
             </span>
             {stat.avg ? (
               <span className="row small" style={{ gap: 6 }}>
-                <Stars value={Math.round(stat.avg)} size={15} /> <b>{stat.avg.toFixed(1)}</b>
+                <Stars value={roundHalf(stat.avg)} size={15} /> <b>{fmtAvg(stat.avg)}</b>
               </span>
             ) : null}
           </div>

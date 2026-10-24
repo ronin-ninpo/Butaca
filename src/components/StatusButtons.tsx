@@ -30,8 +30,15 @@ export function StatusButtons({ target }: { target: Target }) {
       </div>
       {st === 'seen' && (
         <button className="card row" style={{ marginTop: 10, width: '100%', justifyContent: 'space-between' }} onClick={() => openRate(target)}>
-          <span className="muted small">{e?.rating ? 'Tu calificación' : 'Todavía no la calificaste'}</span>
-          <Stars value={e?.rating ?? 0} size={22} />
+          <span className="muted small">{e?.rating || e?.legend ? 'Tu calificación' : 'Todavía no la calificaste'}</span>
+          <span className="row" style={{ gap: 10 }}>
+            {e?.legend && (
+              <span className="legend-tag">
+                <Icon name="crown" size={16} fill /> Leyenda
+              </span>
+            )}
+            <Stars value={e?.rating ?? 0} size={22} />
+          </span>
         </button>
       )}
     </>

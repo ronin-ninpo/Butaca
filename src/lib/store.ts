@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Entry, FavKind, FavPerson, PersonRef, Snapshot, Status } from './types';
 import { keyOf } from './types';
+import { groupOf } from './rating';
 
 export interface Settings {
   tmdbKey: string;
@@ -19,8 +20,8 @@ interface LibraryState {
   favDirectors: Record<string, FavPerson>;
   settings: Settings;
 
-  setStatus: (snap: Snapshot, status: Status, rating?: number) => void;
-  setRating: (key: string, rating: number | undefined) => void;
+  setStatus: (snap: Snapshot, status: Status, rating?: number, legend?: boolean) => void;
+  setRating: (key: string, rating: number | undefined, legend?: boolean) => void;
   updateSnap: (key: string, snap: Partial<Snapshot>) => void;
   remove: (key: string) => void;
   restore: (entry: Entry, orderIndex?: number) => void;
@@ -52,7 +53,7 @@ export const useStore = create<LibraryState>()(
       ...emptyLibrary,
       settings: { ...defaultSettings },
 
-      setStatus: (snap, status, rating) =>
+      setStatus: (snap, status, rating, legend) =>
         set((s) => {
           const key = keyOf(snap.type, snap.id);
           const prev = s.entries[key];
@@ -61,6 +62,7 @@ export const useStore = create<LibraryState>()(
             key,
             status,
             rating: status === 'seen' ? rating : undefined,
+            legend: status === 'seen' && legend ? true : undefined,
             addedAt: prev?.status === status ? prev.addedAt : now,
             seenAt: status === 'seen' ? (prev?.status === 'seen' ? prev.seenAt : now) : undefined,
             snap: { ...prev?.snap, ...snap },
@@ -71,13 +73,14 @@ export const useStore = create<LibraryState>()(
           return { entries: { ...s.entries, [key]: entry }, order };
         }),
 
-      setRating: (key, rating) =>
+      setRating: (key, rating, legend) =>
         set((s) => {
           const e = s.entries[key];
           if (!e) return {};
-          // Si cambia de grupo de estrellas, va al final del grupo nuevo.
-          const order = e.rating !== rating ? [...s.order.filter((k) => k !== key), key] : s.order;
-          return { entries: { ...s.entries, [key]: { ...e, status: 'seen', rating } }, order };
+          const next: Entry = { ...e, status: 'seen', rating, legend: legend ? true : undefined };
+          // Si cambia de grupo (estrellas o leyenda), va al final del grupo nuevo.
+          const order = groupOf(e) !== groupOf(next) || !s.order.includes(key) ? [...s.order.filter((k) => k !== key), key] : s.order;
+          return { entries: { ...s.entries, [key]: next }, order };
         }),
 
       updateSnap: (key, snap) =>

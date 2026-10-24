@@ -43,7 +43,10 @@ export interface Snapshot {
 export interface Entry {
   key: string;
   status: Status;
+  /** De 0,5 a 5 en pasos de 0,5 */
   rating?: number;
+  /** Una de mis favoritas de siempre: va arriba de todo en "Mis favoritas" */
+  legend?: boolean;
   addedAt: number;
   seenAt?: number;
   snap: Snapshot;

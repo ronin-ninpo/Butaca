@@ -8,6 +8,7 @@ import { Avatar } from '../components/Poster';
 import { Empty, Segmented } from '../components/Misc';
 import { Icon } from '../components/Icon';
 import { Stars } from '../components/Stars';
+import { fmtAvg, roundHalf } from '../lib/rating';
 
 export function Favorites() {
   const { tab } = useParams();
@@ -88,7 +89,7 @@ function PersonRow({ p, stat, fav, onToggle }: { p: FavPerson; stat?: PersonStat
               Viste {stat.seen}
               {stat.avg ? (
                 <span className="row" style={{ gap: 4, marginLeft: 8 }}>
-                  <Stars value={Math.round(stat.avg)} size={12} /> {stat.avg.toFixed(1)}
+                  <Stars value={roundHalf(stat.avg)} size={12} /> {fmtAvg(stat.avg)}
                 </span>
               ) : null}
             </div>

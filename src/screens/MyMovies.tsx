@@ -15,6 +15,7 @@ import { RatingBadge } from '../components/RatingBadge';
 import { Stars } from '../components/Stars';
 import { Empty, Segmented } from '../components/Misc';
 import { Icon } from '../components/Icon';
+import { GROUP_ORDER, fmtAvg, fmtRating, groupOf, groupRank } from '../lib/rating';
 
 type Tab = 'vistas' | 'quiero' | 'descartadas';
 type SeenSort = 'fav' | 'recent' | 'year' | 'imdb' | 'title';
@@ -22,12 +23,12 @@ type TypeF = 'all' | MediaType;
 
 const imdbNum = (e: Entry) => (e.snap.imdbRating ? parseFloat(e.snap.imdbRating) : -1);
 
-/** Vistas ordenadas como "mis favoritas": por estrellas y, dentro de cada grupo, por el orden manual. */
+/** Vistas ordenadas como "mis favoritas": leyendas, después por estrellas y, dentro de cada grupo, por el orden manual. */
 export function favoritesOrder(entries: Record<string, Entry>, order: string[]) {
   const pos = new Map(order.map((k, i) => [k, i]));
   return Object.values(entries)
     .filter((e) => e.status === 'seen')
-    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || (pos.get(a.key) ?? 1e9) - (pos.get(b.key) ?? 1e9) || (b.seenAt ?? 0) - (a.seenAt ?? 0));
+    .sort((a, b) => groupRank(b) - groupRank(a) || (pos.get(a.key) ?? 1e9) - (pos.get(b.key) ?? 1e9) || (b.seenAt ?? 0) - (a.seenAt ?? 0));
 }
 
 export function MyMovies() {
@@ -103,7 +104,7 @@ function Seen() {
   const [genreF, setGenreF] = useState<number | null>(null);
 
   const favs = useMemo(() => favoritesOrder(entries, order), [entries, order]);
-  const rank = useMemo(() => new Map(favs.filter((e) => e.rating).map((e, i) => [e.key, i + 1])), [favs]);
+  const rank = useMemo(() => new Map(favs.filter((e) => e.rating || e.legend).map((e, i) => [e.key, i + 1])), [favs]);
   const filtered = favs.filter((e) => (typeF === 'all' || e.snap.type === typeF) && (genreF === null || e.snap.genreIds.includes(genreF)));
   const filtering = typeF !== 'all' || genreF !== null;
   const sorted =
@@ -131,31 +132,31 @@ function Seen() {
       </Empty>
     );
 
-  const groups: { rating: number; items: Entry[] }[] = [];
+  const groups: { id: string; items: Entry[] }[] = [];
   if (sort === 'fav') {
-    for (const r of [5, 4, 3, 2, 1, 0]) {
-      const items = sorted.filter((e) => (e.rating ?? 0) === r);
-      if (items.length) groups.push({ rating: r, items });
+    for (const id of GROUP_ORDER) {
+      const items = sorted.filter((e) => groupOf(e) === id);
+      if (items.length) groups.push({ id, items });
     }
   }
 
-  const onGroupReorder = (r: number, newKeys: string[]) => {
+  const onGroupReorder = (id: string, newKeys: string[]) => {
     // Reemplazamos ese grupo dentro del orden completo y mantenemos los demás igual.
     const full = favoritesOrder(useStore.getState().entries, useStore.getState().order);
-    const byGroup = new Map<number, string[]>();
+    const byGroup = new Map<string, string[]>();
     for (const e of full) {
-      const g = e.rating ?? 0;
+      const g = groupOf(e);
       byGroup.set(g, [...(byGroup.get(g) ?? []), e.key]);
     }
-    byGroup.set(r, newKeys);
-    setOrder([5, 4, 3, 2, 1, 0].flatMap((g) => byGroup.get(g) ?? []));
+    byGroup.set(id, newKeys);
+    setOrder(GROUP_ORDER.flatMap((g) => byGroup.get(g) ?? []));
   };
 
   return (
     <>
       <div className="row" style={{ marginTop: 12, justifyContent: 'space-between' }}>
         <span className="muted small ellipsis grow">
-          {favs.length} vistas{avg ? ` · ★ ${avg.toFixed(1)}` : ''}
+          {favs.length} vistas{avg ? ` · ★ ${fmtAvg(avg)}` : ''}
         </span>
         <label className="row small muted" style={{ gap: 6 }}>
           <Icon name="sort" size={15} />
@@ -172,18 +173,28 @@ function Seen() {
 
       {sort === 'fav' && (
         <p className="faint small" style={{ marginTop: 10 }}>
-          {filtering ? 'Quitá los filtros para reordenar.' : 'Arrastrá desde ⠿ para ordenar las que tienen la misma cantidad de estrellas.'}
+          {filtering ? 'Quitá los filtros para reordenar.' : 'Arrastrá desde ⠿ para ordenar las que tienen la misma calificación.'}
         </p>
       )}
 
       {sort === 'fav' ? (
         groups.map((g) => (
-          <div key={g.rating}>
-            <div className="group-head">
-              {g.rating ? <Stars value={g.rating} size={15} /> : <span className="muted">Sin calificar</span>}
+          <div key={g.id} className="group" data-group={g.id}>
+            <div className={`group-head ${g.id === 'L' ? 'legend' : ''}`}>
+              {g.id === 'L' ? (
+                <>
+                  <Icon name="crown" size={18} fill /> Leyendas
+                </>
+              ) : g.id !== '0' ? (
+                <>
+                  <Stars value={Number(g.id)} size={15} /> <span className="small">{fmtRating(Number(g.id))}</span>
+                </>
+              ) : (
+                <span className="muted">Sin calificar</span>
+              )}
               <span className="muted">{g.items.length}</span>
             </div>
-            <SortableGroup items={g.items} rank={rank} disabled={filtering || g.items.length < 2} onReorder={(keys) => onGroupReorder(g.rating, keys)} />
+            <SortableGroup items={g.items} rank={rank} disabled={filtering || g.items.length < 2} onReorder={(keys) => onGroupReorder(g.id, keys)} />
           </div>
         ))
       ) : (
@@ -262,7 +273,14 @@ function SeenRow({ e, rankNo, handle, rowRef, style, dragging }: { e: Entry; ran
           </span>
         </div>
         <button style={{ marginTop: 5 }} onClick={() => openRate(summaryFromSnap(s))} aria-label="Cambiar calificación">
-          {e.rating ? <Stars value={e.rating} size={16} /> : <span className="link small">Calificar</span>}
+          {e.rating || e.legend ? (
+            <span className="row" style={{ gap: 8 }}>
+              {e.legend && <Icon name="crown" size={16} fill className="legend-tag" />}
+              <Stars value={e.rating ?? 0} size={16} />
+            </span>
+          ) : (
+            <span className="link small">Calificar</span>
+          )}
         </button>
       </div>
       {handle}

@@ -3,6 +3,7 @@ import type { Entry, FavKind, PersonRef } from './types';
 export interface PersonStat extends PersonRef {
   seen: number;
   rated: number;
+  legends: number;
   avg?: number;
   score: number;
   titles: string[];
@@ -20,12 +21,13 @@ export function peopleStats(entries: Record<string, Entry>, kind: FavKind): Pers
     for (const p of people) {
       let s = map.get(p.id);
       if (!s) {
-        s = { id: p.id, name: p.name, profile: p.profile, seen: 0, rated: 0, sum: 0, score: 0, titles: [] };
+        s = { id: p.id, name: p.name, profile: p.profile, seen: 0, rated: 0, legends: 0, sum: 0, score: 0, titles: [] };
         map.set(p.id, s);
       }
       if (!s.profile && p.profile) s.profile = p.profile;
       s.seen++;
       s.titles.push(e.snap.title);
+      if (e.legend) s.legends++;
       if (e.rating) {
         s.rated++;
         s.sum += e.rating;
@@ -37,7 +39,8 @@ export function peopleStats(entries: Record<string, Entry>, kind: FavKind): Pers
       ...s,
       avg: s.rated ? sum / s.rated : undefined,
       // promedio "bayesiano": con pocas películas tira hacia 3, con muchas pesa tu nota real
-      score: (sum + PRIOR * WEIGHT) / (s.rated + WEIGHT) + Math.min(s.seen, 10) * 0.02,
+      // las leyendas suman un extra
+      score: (sum + PRIOR * WEIGHT) / (s.rated + WEIGHT) + Math.min(s.seen, 10) * 0.02 + s.legends * 0.25,
     }))
     .sort((a, b) => b.score - a.score || b.seen - a.seen);
 }
@@ -45,8 +48,9 @@ export function peopleStats(entries: Record<string, Entry>, kind: FavKind): Pers
 /** Los que más te gustan (según calificaciones) para la sección automática. */
 export function autoFavorites(entries: Record<string, Entry>, kind: FavKind, limit = 30) {
   const stats = peopleStats(entries, kind);
-  const strong = stats.filter((s) => s.rated >= 2 && (s.avg ?? 0) >= 3.5);
-  const pool = strong.length >= 5 ? strong : stats.filter((s) => s.rated >= 1 && (s.avg ?? 0) >= 3.5);
+  const likes = (s: PersonStat) => (s.avg ?? 0) >= 3.5 || s.legends > 0;
+  const strong = stats.filter((s) => (s.rated >= 2 || s.legends > 0) && likes(s));
+  const pool = strong.length >= 5 ? strong : stats.filter((s) => s.rated >= 1 && likes(s));
   return pool.slice(0, limit);
 }
 

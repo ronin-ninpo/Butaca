@@ -80,7 +80,7 @@ export function ForYou() {
   }, [queue.length, recs.loading, recs.data, later.length]);
 
   const current = queue[0];
-  const ratedCount = Object.values(entries).filter((e) => e.status === 'seen' && e.rating).length;
+  const ratedCount = Object.values(entries).filter((e) => e.status === 'seen' && (e.rating || e.legend)).length;
   const coldStart = ratedCount < 5;
 
   // Precarga de las próximas fichas para que el mazo sea fluido.

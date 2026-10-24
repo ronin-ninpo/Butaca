@@ -5,8 +5,14 @@ import { toast } from './toast';
 import type { MediaSummary, Snapshot, Status } from './types';
 import { keyOf } from './types';
 
-const STARS = ['', 'Mala', 'Regular', 'Buena', 'Muy buena', '¡Excelente!'];
-export const ratingLabel = (r?: number) => (r ? STARS[r] : '');
+import { fmtRating, ratingLabel, starsText } from './rating';
+
+const ratingText = (title: string, rating?: number, legend?: boolean) =>
+  legend
+    ? `«${title}»: 👑 Leyenda${rating ? ` · ${starsText(rating)}` : ''}`
+    : rating
+      ? `«${title}»: ${starsText(rating)} ${fmtRating(rating)} · ${ratingLabel(rating)}`
+      : `«${title}» marcada como vista`;
 
 function isDetails(x: MediaSummary | Details): x is Details {
   return (x as Details).raw !== undefined;
@@ -36,7 +42,7 @@ function undoFor(key: string) {
 }
 
 /** Marca un título como "quiero verla", "ya la vi" (con o sin estrellas) o "no me interesa". */
-export function mark(target: MediaSummary | Details, status: Status, rating?: number, opts: { quiet?: boolean } = {}) {
+export function mark(target: MediaSummary | Details, status: Status, rating?: number, legend?: boolean, opts: { quiet?: boolean } = {}) {
   const det = isDetails(target) ? target : undefined;
   const snap = det ? snapshotFromDetails(det) : snapshotFromSummary(target as MediaSummary);
   const key = keyOf(snap.type, snap.id);
@@ -45,9 +51,9 @@ export function mark(target: MediaSummary | Details, status: Status, rating?: nu
   const prev = store.entries[key];
   if (status === 'seen' && prev?.status === 'seen') {
     store.updateSnap(key, snap);
-    store.setRating(key, rating);
+    store.setRating(key, rating, legend);
   } else {
-    store.setStatus(snap, status, rating);
+    store.setStatus(snap, status, rating, legend);
   }
 
   const needsEnrich = !det && (!prev?.snap.cast || !prev?.snap.directors);
@@ -59,9 +65,7 @@ export function mark(target: MediaSummary | Details, status: Status, rating?: nu
       status === 'want'
         ? `«${t}» agregada a Quiero ver`
         : status === 'seen'
-          ? rating
-            ? `«${t}»: ${'★'.repeat(rating)} ${ratingLabel(rating)}`
-            : `«${t}» marcada como vista`
+          ? ratingText(t, rating, legend)
           : `No te vamos a recomendar «${t}»`;
     toast(msg, { label: 'Deshacer', run: undo });
   }
@@ -75,13 +79,10 @@ export function unmark(key: string) {
   toast(`«${e.snap.title}» quitada de tus listas`, { label: 'Deshacer', run: undo });
 }
 
-export function rate(key: string, rating: number | undefined) {
+export function rate(key: string, rating: number | undefined, legend?: boolean) {
   const e = useStore.getState().entries[key];
   if (!e) return;
   const undo = undoFor(key);
-  useStore.getState().setRating(key, rating);
-  toast(rating ? `«${e.snap.title}»: ${'★'.repeat(rating)} ${ratingLabel(rating)}` : `«${e.snap.title}» sin calificación`, {
-    label: 'Deshacer',
-    run: undo,
-  });
+  useStore.getState().setRating(key, rating, legend);
+  toast(ratingText(e.snap.title, rating, legend), { label: 'Deshacer', run: undo });
 }

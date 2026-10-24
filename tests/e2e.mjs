@@ -57,6 +57,15 @@ const assert = (cond, msg) => {
 };
 const lib = () => page.evaluate(() => JSON.parse(localStorage.getItem('butaca-library') ?? '{}').state);
 const cardTitle = () => page.locator('.rec-card h2').first().textContent();
+/** Califica en la hoja abierta: toca la mitad izquierda (x,5) o derecha (entera) de la estrella y guarda. */
+async function rateInSheet(value, legend = false) {
+  await page.waitForTimeout(300); // que termine la animación de la hoja
+  const star = page.locator('.sheet .stars-input > span').nth(Math.ceil(value) - 1);
+  const b = await star.boundingBox();
+  await page.mouse.click(b.x + b.width * (value % 1 ? 0.25 : 0.75), b.y + b.height / 2);
+  if (legend) await page.click('.sheet .legend-btn');
+  await page.click('.sheet button:has-text("Guardar")');
+}
 async function waitNewCard(prev) {
   await page.waitForFunction((p) => document.querySelector('.rec-card h2')?.textContent !== p, prev, { timeout: 8000 });
 }
@@ -82,17 +91,31 @@ try {
   assert((await page.locator('.rec-card .rbadge').first().textContent()).includes('IMDb'), 'la tarjeta muestra la nota de IMDb');
   await shot('para-vos-inicio');
 
-  const ratings = [5, 5, 4, 5, 3, 2, 5];
+  const ratings = [5, 4.5, 4, 5, 3, 2.5, 5];
+  const LEGEND_AT = 3;
+  let legendTitle;
   for (const [i, r] of ratings.entries()) {
     const prev = await cardTitle();
+    if (i === LEGEND_AT) legendTitle = prev;
     await page.click('button[aria-label="Ya la vi"]');
     await page.waitForSelector('.sheet');
-    if (i === 0) await shot('calificar');
-    await page.click(`.sheet button[aria-label="${r} estrella${r > 1 ? 's' : ''}"]`);
+    if (i === 1) {
+      await page.waitForTimeout(300);
+      const b = await page.locator('.sheet .stars-input > span').nth(3).boundingBox();
+      await page.mouse.click(b.x + b.width * 0.25, b.y + b.height / 2);
+      await page.click('.sheet .legend-btn');
+      await shot('calificar');
+      await page.click('.sheet .legend-btn');
+    }
+    await rateInSheet(r, i === LEGEND_AT);
     await waitNewCard(prev);
   }
   let s = await lib();
-  assert(Object.values(s.entries).filter((e) => e.status === 'seen').length === ratings.length, `${ratings.length} películas calificadas y guardadas`);
+  const seenNow = Object.values(s.entries).filter((e) => e.status === 'seen');
+  assert(seenNow.length === ratings.length, `${ratings.length} películas calificadas y guardadas`);
+  assert(seenNow.some((e) => e.rating === 4.5) && seenNow.some((e) => e.rating === 2.5), 'se guardan las medias estrellas (4,5 y 2,5)');
+  const leg = seenNow.find((e) => e.legend);
+  assert(leg && leg.snap.title === legendTitle && leg.rating === 5, `«${legendTitle}» quedó marcada como Leyenda`);
 
   let prev = await cardTitle();
   await page.click('button[aria-label="Quiero verla"]');
@@ -183,7 +206,8 @@ try {
   const wasWant = await page.getAttribute('.sbtn.want', 'aria-pressed');
   await page.click('.status-btns >> text=Quiero verla');
   assert((await page.getAttribute('.sbtn.want', 'aria-pressed')) !== wasWant, 'el botón «Quiero verla» de la ficha alterna el estado');
-  if (wasWant === 'true') await page.click('.status-btns >> text=Quiero verla');
+  await page.click('.toast button:has-text("Deshacer")');
+  assert((await page.getAttribute('.sbtn.want', 'aria-pressed')) === wasWant, 'Deshacer en la ficha vuelve al estado anterior');
 
   console.log('Persona');
   await page.click('.people >> text=Keanu Reeves');
@@ -196,7 +220,10 @@ try {
   await page.goto(BASE + '#/mis');
   await page.waitForSelector('.group-head');
   await shot('mis-vistas');
-  const groupRows = page.locator('.group-head').first().locator('xpath=following-sibling::div[1]').locator('.mrow');
+  assert((await page.locator('.group').first().getAttribute('data-group')) === 'L', 'las leyendas aparecen primero en «Mis favoritas»');
+  assert((await page.locator('.group[data-group="L"] .mrow .t').first().textContent()) === legendTitle, 'la leyenda es la #1 del ranking');
+  assert((await page.locator('.group[data-group="4.5"] .mrow').count()) === 1, 'grupo propio para 4,5 estrellas');
+  const groupRows = page.locator('.group[data-group="5"] .mrow');
   const before = await groupRows.locator('.t').allTextContents();
   assert(before.length >= 2, `grupo de 5 estrellas con ${before.length} películas`);
   const h1 = await groupRows.nth(1).locator('.handle').boundingBox();
@@ -209,7 +236,7 @@ try {
   const after = await groupRows.locator('.t').allTextContents();
   assert(after[0] === before[1] && after[1] === before[0], `arrastrar reordena dentro del grupo: «${after[0]}» ahora es la #1`);
   s = await lib();
-  const firstKey = s.order.find((k) => s.entries[k]?.rating === 5);
+  const firstKey = s.order.find((k) => s.entries[k]?.rating === 5 && !s.entries[k]?.legend);
   assert(s.entries[firstKey].snap.title === before[1], 'el nuevo orden queda guardado');
   await shot('mis-vistas-reordenadas');
 
@@ -221,10 +248,11 @@ try {
 
   // Cambiar calificación mueve de grupo
   await groupRows.nth(0).locator('button[aria-label="Cambiar calificación"]').click();
-  await page.click('.sheet button[aria-label="4 estrellas"]');
-  await page.waitForTimeout(700);
+  await rateInSheet(3.5);
+  await page.waitForTimeout(500);
   s = await lib();
-  assert(Object.values(s.entries).find((e) => e.snap.title === before[1]).rating === 4, 'cambiar la calificación desde la lista');
+  assert(Object.values(s.entries).find((e) => e.snap.title === before[1]).rating === 3.5, 'cambiar la calificación desde la lista (a 3,5)');
+  assert((await page.locator('.group[data-group="3.5"] .mrow .t').allTextContents()).includes(before[1]), 'al cambiar la nota pasa al grupo nuevo');
 
   await page.click('.segmented >> text=Quiero ver');
   await page.waitForSelector('.mrow');

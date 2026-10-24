@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { infoOf, useSheets } from '../lib/sheets';
 import { useStore } from '../lib/store';
 import { keyOf } from '../lib/types';
-import { mark, ratingLabel, unmark } from '../lib/actions';
+import { mark, unmark } from '../lib/actions';
+import { fmtRating, ratingLabel } from '../lib/rating';
 import { Stars } from './Stars';
 import { Poster } from './Poster';
 import { Icon } from './Icon';
@@ -42,9 +43,12 @@ export function Sheets() {
   const key = info ? keyOf(info.type, info.id) : '';
   const entry = useStore((s) => (key ? s.entries[key] : undefined));
   const [stars, setStars] = useState(0);
+  const [legend, setLegend] = useState(false);
 
   useEffect(() => {
-    setStars(entry?.status === 'seen' ? entry.rating ?? 0 : 0);
+    const seen = entry?.status === 'seen';
+    setStars(seen ? entry.rating ?? 0 : 0);
+    setLegend(seen ? !!entry.legend : false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, key]);
 
@@ -52,12 +56,14 @@ export function Sheets() {
 
   if (!kind || !target || !info) return null;
 
-  const pick = (v: number) => {
-    setStars(v);
-    setTimeout(() => {
-      mark(target, 'seen', v);
-      close();
-    }, 380);
+  const toggleLegend = () => {
+    // Una leyenda sin estrellas arranca con 5 (después se pueden cambiar).
+    if (!legend && !stars) setStars(5);
+    setLegend(!legend);
+  };
+  const save = () => {
+    mark(target, 'seen', stars || undefined, legend);
+    close();
   };
 
   return (
@@ -78,10 +84,31 @@ export function Sheets() {
             <p className="center muted" style={{ marginTop: 18 }}>
               ¿Qué te pareció?
             </p>
-            <div className="center" style={{ marginTop: 8 }}>
-              <Stars value={stars} onChange={pick} size={40} big />
+            <div className="center" style={{ marginTop: 4 }}>
+              <Stars value={stars} onChange={setStars} size={42} big />
             </div>
-            <div className="rate-label">{ratingLabel(stars)}</div>
+            <div className="rate-label">
+              {stars ? (
+                <>
+                  {fmtRating(stars)} · {ratingLabel(stars)} <span className="muted small">({stars * 2}/10)</span>
+                </>
+              ) : (
+                <span className="faint small" style={{ fontWeight: 500 }}>
+                  Tocá la mitad de una estrella para media
+                </span>
+              )}
+            </div>
+            <button className={`legend-btn ${legend ? 'on' : ''}`} aria-pressed={legend} onClick={toggleLegend}>
+              <Icon name="crown" size={26} fill={legend} />
+              <span>
+                <b>Leyenda</b>
+                <span className="small">Una de mis favoritas de siempre</span>
+              </span>
+              <span className="check">{legend && <Icon name="check" size={14} stroke={3} />}</span>
+            </button>
+            <button className="btn primary block" style={{ marginTop: 14 }} onClick={save} disabled={!stars && !legend}>
+              Guardar
+            </button>
             <div className="opts">
               <button
                 className="opt"
