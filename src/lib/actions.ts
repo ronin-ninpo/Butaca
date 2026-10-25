@@ -13,8 +13,16 @@ const ratingText = (title: string, rating?: number, marks: Marks = {}) => {
     : rating
       ? `«${title}»: ${starsText(rating)} ${fmtRating(rating)} · ${ratingLabel(rating)}`
       : `«${title}» marcada como vista`;
-  return marks.classic ? `${base} · 🏅 Clásico` : base;
+  return base + (marks.classic ? ' · 🏅 Clásico' : '') + (marks.rewatch ? ' · para volver a ver' : '');
 };
+
+export function toggleRewatch(key: string) {
+  const e = useStore.getState().entries[key];
+  if (!e || e.status !== 'seen') return;
+  const undo = undoFor(key);
+  useStore.getState().setRewatch(key, !e.rewatch);
+  toast(e.rewatch ? `«${e.snap.title}» ya no está para volver a ver` : `«${e.snap.title}» marcada para volver a ver`, { label: 'Deshacer', run: undo });
+}
 
 function isDetails(x: MediaSummary | Details): x is Details {
   return (x as Details).raw !== undefined;

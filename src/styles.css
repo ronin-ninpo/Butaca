@@ -223,7 +223,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---------- Ficha ---------- */
 .hero { position: relative; margin-bottom: -90px; }
-.hero .backdrop { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--surface); }
+.hero .backdrop { width: 100%; height: min(62.5vw, 42vh); object-fit: cover; background: var(--surface); }
 .hero .backdrop.empty { background: linear-gradient(160deg, #2a1e2e, var(--bg)); }
 .hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15, 13, 18, 0.25) 0%, rgba(15, 13, 18, 0) 30%, rgba(15, 13, 18, 0.75) 72%, var(--bg) 100%); }
 .hero-bar { position: absolute; z-index: 2; top: calc(var(--safe-t) + 10px); left: 12px; right: 12px; display: flex; justify-content: space-between; }
@@ -264,7 +264,8 @@ h1, h2, h3, p { margin: 0; }
   transition: transform 0.25s ease, opacity 0.25s ease; will-change: transform;
 }
 .rec-card.dragging { transition: none; }
-.rec-card .art { position: relative; aspect-ratio: 16 / 9; background: var(--surface-2); }
+/* En pantallas anchas la imagen no pasa de ~30% del alto, así se ve el título y la sinopsis sin bajar. */
+.rec-card .art { position: relative; height: min(calc((100vw - 32px) * 9 / 16), 30vh); min-height: 140px; background: var(--surface-2); }
 .rec-card .art img.bd { width: 100%; height: 100%; object-fit: cover; }
 .rec-card .art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0) 40%, var(--surface) 100%); }
 .rec-card .art .poster { position: absolute; z-index: 1; left: 14px; bottom: -36px; width: 92px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); }
@@ -371,3 +372,11 @@ input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; a
 .legend-btn.classic.on .check { background: var(--classic); border-color: var(--classic); }
 .classic-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 800; color: var(--classic); }
 .status-badge .classic-mark { color: #2a1650; }
+.legend-btn.rewatch { margin-top: 10px; }
+.legend-btn.rewatch.on { border-color: var(--want); background: color-mix(in srgb, var(--want) 14%, var(--surface-2)); }
+.legend-btn.rewatch.on svg { color: var(--want); }
+.legend-btn.rewatch.on .check { background: var(--want); border-color: var(--want); }
+.desire { display: inline-flex; align-items: center; gap: 0; color: var(--surface-3); }
+.desire button { padding: 3px 2px; color: var(--surface-3); line-height: 0; }
+.desire button.on { color: #ff8a3d; }
+.desire-label { margin-left: 8px; font-size: 13px; font-weight: 650; color: var(--muted); }

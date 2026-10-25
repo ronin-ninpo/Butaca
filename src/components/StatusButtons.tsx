@@ -1,9 +1,10 @@
 import { useStore } from '../lib/store';
 import { useSheets, infoOf, type Target } from '../lib/sheets';
-import { mark, unmark } from '../lib/actions';
+import { mark, toggleRewatch, unmark } from '../lib/actions';
 import { keyOf } from '../lib/types';
 import { Icon } from './Icon';
 import { Stars } from './Stars';
+import { Desire } from './Desire';
 
 /** Los tres botones: Quiero verla / Ya la vi / No me interesa. */
 export function StatusButtons({ target }: { target: Target }) {
@@ -29,6 +30,12 @@ export function StatusButtons({ target }: { target: Target }) {
           No me interesa
         </button>
       </div>
+      {st === 'want' && (
+        <div className="card row" style={{ marginTop: 10, justifyContent: 'space-between' }}>
+          <span className="muted small">Ganas de verla</span>
+          <Desire k={k} size={22} showLabel />
+        </div>
+      )}
       {st === 'want' && (
         <button className="card row" style={{ marginTop: 10, width: '100%', textAlign: 'left' }} onClick={() => openWith(target)}>
           <Icon name="users" size={20} />
@@ -62,6 +69,28 @@ export function StatusButtons({ target }: { target: Target }) {
             <Stars value={e?.rating ?? 0} size={22} />
           </span>
         </button>
+      )}
+      {st === 'seen' && (
+        <div className="card row" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+          <button className={`chip ${e?.rewatch ? 'on' : ''}`} aria-pressed={!!e?.rewatch} onClick={() => toggleRewatch(k)}>
+            <Icon name="repeat" size={16} /> Para volver a ver
+          </button>
+          {e?.rewatch && (
+            <button className="grow small row" style={{ justifyContent: 'space-between', minWidth: 160 }} onClick={() => openWith(target)}>
+              <span>
+                {e.withWho?.length ? (
+                  <>
+                    <span className="muted">con </span>
+                    <b>{e.withWho.join(', ')}</b>
+                  </>
+                ) : (
+                  <span className="muted">¿Con quién?</span>
+                )}
+              </span>
+              <Icon name="chevron" size={18} />
+            </button>
+          )}
+        </div>
       )}
     </>
   );

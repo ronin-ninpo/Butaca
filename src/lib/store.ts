@@ -30,6 +30,8 @@ interface LibraryState {
   setOrder: (order: string[]) => void;
   toggleFav: (kind: FavKind, p: PersonRef) => boolean;
   setWithWho: (key: string, names: string[]) => void;
+  setRewatch: (key: string, on: boolean) => void;
+  setDesire: (key: string, level: 1 | 2 | 3 | undefined) => void;
   /** Crea la etiqueta (si no existe una igual) y devuelve el nombre que quedó guardado. */
   addCompanion: (name: string) => string;
   renameCompanion: (from: string, to: string) => void;
@@ -96,6 +98,7 @@ export const useStore = create<LibraryState>()(
             rating: status === 'seen' ? rating : undefined,
             legend: status === 'seen' && marks.legend ? true : undefined,
             classic: status === 'seen' && marks.classic ? true : undefined,
+            rewatch: status === 'seen' && marks.rewatch ? true : undefined,
             addedAt: prev?.status === status ? prev.addedAt : now,
             seenAt: status === 'seen' ? (prev?.status === 'seen' ? prev.seenAt : now) : undefined,
             updatedAt: now,
@@ -112,7 +115,15 @@ export const useStore = create<LibraryState>()(
         set((s) => {
           const e = s.entries[key];
           if (!e) return {};
-          const next: Entry = { ...e, status: 'seen', rating, legend: marks.legend ? true : undefined, classic: marks.classic ? true : undefined, updatedAt: Date.now() };
+          const next: Entry = {
+            ...e,
+            status: 'seen',
+            rating,
+            legend: marks.legend ? true : undefined,
+            classic: marks.classic ? true : undefined,
+            rewatch: marks.rewatch ? true : undefined,
+            updatedAt: Date.now(),
+          };
           // Si cambia de grupo (estrellas o leyenda), va al final del grupo nuevo.
           const order = groupOf(e) !== groupOf(next) || !s.order.includes(key) ? [...s.order.filter((k) => k !== key), key] : s.order;
           return { entries: { ...s.entries, [key]: next }, order };
@@ -167,6 +178,20 @@ export const useStore = create<LibraryState>()(
           const e = s.entries[key];
           if (!e) return {};
           return { entries: { ...s.entries, [key]: { ...e, withWho: names.length ? names : undefined, updatedAt: Date.now() } } };
+        }),
+
+      setRewatch: (key, on) =>
+        set((s) => {
+          const e = s.entries[key];
+          if (!e || e.status !== 'seen') return {};
+          return { entries: { ...s.entries, [key]: { ...e, rewatch: on ? true : undefined, updatedAt: Date.now() } } };
+        }),
+
+      setDesire: (key, level) =>
+        set((s) => {
+          const e = s.entries[key];
+          if (!e || e.status !== 'want') return {};
+          return { entries: { ...s.entries, [key]: { ...e, desire: level, updatedAt: Date.now() } } };
         }),
 
       addCompanion: (raw) => {

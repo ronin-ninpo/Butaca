@@ -270,11 +270,20 @@ try {
   await page.waitForSelector('.mrow');
   await shot('quiero-ver');
 
-  console.log('Con quién verla');
+  console.log('Quiero ver');
   const wantRows = page.locator('.mrow');
   assert((await wantRows.count()) >= 2, `${await wantRows.count()} películas en Quiero ver`);
   const t0 = await wantRows.nth(0).locator('.t').textContent();
   const t1 = await wantRows.nth(1).locator('.t').textContent();
+
+  console.log('Ganas de verla');
+  await wantRows.nth(1).locator('button[aria-label^="3 de 3"]').click();
+  assert((await wantRows.nth(0).locator('.t').textContent()) === t1, `con 3 llamitas «${t1}» pasa primero («Más ganas primero»)`);
+  s = await lib();
+  assert(Object.values(s.entries).find((e) => e.snap.title === t1)?.desire === 3, 'el nivel de ganas queda guardado');
+  await wantRows.nth(0).locator('button[aria-label^="3 de 3"]').click();
+  assert((await wantRows.nth(0).locator('.t').textContent()) === t0 && !Object.values((await lib()).entries).find((e) => e.snap.title === t1)?.desire, 'tocar el mismo nivel lo quita y vuelve el orden');
+  console.log('Con quién verla');
   await wantRows.nth(0).locator('.with-line').click();
   await page.waitForSelector('.sheet input[aria-label="Nueva etiqueta"]');
   for (const name of ['Belén', 'Familia']) {
@@ -322,6 +331,35 @@ try {
   await page.waitForTimeout(300);
   s = await lib();
   assert(Object.values(s.entries).find((e) => e.snap.title === t0)?.withWho?.[0] === 'Belu', 'al marcarla como vista conserva con quién');
+  console.log('Para volver a ver');
+  await page.click('.segmented >> text=Vistas');
+  await page.waitForSelector('.group-head');
+  const firstSeen = await page.locator('.mrow .t').first().textContent();
+  await page.locator('.mrow').first().locator('button[aria-label="Cambiar calificación"]').click();
+  await page.waitForTimeout(300);
+  await page.click('.sheet .legend-btn.rewatch');
+  await page.click('.sheet button:has-text("Guardar")');
+  await page.waitForTimeout(300);
+  s = await lib();
+  const rw = Object.values(s.entries).find((e) => e.snap.title === firstSeen);
+  assert(rw.rewatch && rw.status === 'seen' && (await page.locator('.mrow .t').first().textContent()) === firstSeen, `«${firstSeen}» marcada para volver a ver y sigue en Vistas, en su lugar`);
+  await page.locator('.mrow').first().locator('.with-line').click();
+  await page.waitForSelector('.sheet >> text=¿Con quién la querés volver a ver?');
+  await page.click('.sheet .tag-grid .chip:has-text("Belu")');
+  await page.click('.sheet button:has-text("Listo")');
+  assert((await page.locator('.mrow').first().locator('.with-line').textContent()).includes('Volver a ver · Belu'), 'volver a verla con Belu');
+  await shot('volver-a-ver');
+  await page.click('.chips .chip:has-text("Para volver a ver")');
+  assert((await page.locator('.mrow').count()) === 1, 'filtro «Para volver a ver» muestra solo esa');
+  await page.click('[aria-label="Filtrar por con quién volver a verla"] .chip:has-text("Belu")');
+  assert((await page.locator('.mrow').count()) === 1, 'y se puede filtrar por con quién');
+  await page.click('[aria-label="Filtrar por con quién volver a verla"] .chip:has-text("Sin asignar")');
+  assert((await page.locator('.mrow').count()) === 0, '«Sin asignar» no muestra ninguna');
+  await page.click('.chips .chip:has-text("Para volver a ver")');
+  await page.locator('.mrow').first().locator('a').first().click();
+  await page.waitForSelector('.head h1');
+  assert((await page.getAttribute('button:has-text("Para volver a ver")', 'aria-pressed')) === 'true', 'la ficha muestra «Para volver a ver» activado');
+  await page.goBack();
   await page.click('.segmented >> text=Quiero ver');
 
   console.log('Favoritos');

@@ -15,6 +15,7 @@ import { RatingBadge } from '../components/RatingBadge';
 import { Stars } from '../components/Stars';
 import { Empty, Segmented } from '../components/Misc';
 import { Icon } from '../components/Icon';
+import { Desire } from '../components/Desire';
 import { GROUP_ORDER, fmtAvg, fmtRating, groupOf, groupRank } from '../lib/rating';
 
 type Tab = 'vistas' | 'quiero' | 'descartadas';
@@ -67,16 +68,14 @@ function Filters({
   genreF,
   setGenreF,
   list,
-  classicF,
-  setClassicF,
+  toggles = [],
 }: {
   typeF: TypeF;
   setTypeF: (t: TypeF) => void;
   genreF: number | null;
   setGenreF: (g: number | null) => void;
   list: Entry[];
-  classicF?: boolean;
-  setClassicF?: (v: boolean) => void;
+  toggles?: { id: string; label: string; icon: string; count: number; on: boolean; onToggle: () => void }[];
 }) {
   const includeTv = useStore((s) => s.settings.includeTv);
   const genreMap = useGenreMap();
@@ -86,15 +85,17 @@ function Filters({
     for (const e of list) for (const g of e.snap.genreIds) m.set(g, (m.get(g) ?? 0) + 1);
     return [...m.entries()].filter(([g]) => genreMap.has(g)).sort((a, b) => b[1] - a[1]);
   }, [list, genreMap]);
-  const classics = list.filter((e) => e.classic).length;
-  if (list.length < 2) return null;
+  const shown = toggles.filter((t) => t.count > 0 || t.on);
+  if (list.length < 2 && !shown.length) return null;
   return (
     <div className="chips" style={{ marginTop: 10 }}>
-      {setClassicF && classics > 0 && (
+      {shown.length > 0 && (
         <>
-          <button className={`chip ${classicF ? 'on' : ''}`} aria-pressed={!!classicF} onClick={() => setClassicF(!classicF)}>
-            <Icon name="award" size={15} /> Clásicos <span className="faint">{classics}</span>
-          </button>
+          {shown.map((t) => (
+            <button key={t.id} className={`chip ${t.on ? 'on' : ''}`} aria-pressed={t.on} onClick={t.onToggle}>
+              <Icon name={t.icon} size={15} /> {t.label} <span className="faint">{t.count}</span>
+            </button>
+          ))}
           <span style={{ width: 1, background: 'var(--line)', flex: 'none' }} />
         </>
       )}
@@ -128,13 +129,20 @@ function Seen() {
   const [typeF, setTypeF] = useState<TypeF>('all');
   const [genreF, setGenreF] = useState<number | null>(null);
   const [classicF, setClassicF] = useState(false);
+  const [rewatchF, setRewatchF] = useState(false);
+  const [withF, setWithF] = useState<string | null>(null);
 
   const favs = useMemo(() => favoritesOrder(entries, order), [entries, order]);
   const rank = useMemo(() => new Map(favs.filter((e) => e.rating || e.legend).map((e, i) => [e.key, i + 1])), [favs]);
   const filtered = favs.filter(
-    (e) => (typeF === 'all' || e.snap.type === typeF) && (genreF === null || e.snap.genreIds.includes(genreF)) && (!classicF || e.classic),
+    (e) =>
+      (typeF === 'all' || e.snap.type === typeF) &&
+      (genreF === null || e.snap.genreIds.includes(genreF)) &&
+      (!classicF || e.classic) &&
+      (!rewatchF || (e.rewatch && matchesWith(e, withF))),
   );
-  const filtering = typeF !== 'all' || genreF !== null || classicF;
+  const filtering = typeF !== 'all' || genreF !== null || classicF || rewatchF;
+  const rewatchItems = favs.filter((e) => e.rewatch);
   const sorted =
     sort === 'fav'
       ? filtered
@@ -197,7 +205,18 @@ function Seen() {
           </select>
         </label>
       </div>
-      <Filters typeF={typeF} setTypeF={setTypeF} genreF={genreF} setGenreF={setGenreF} list={favs} classicF={classicF} setClassicF={setClassicF} />
+      <Filters
+        typeF={typeF}
+        setTypeF={setTypeF}
+        genreF={genreF}
+        setGenreF={setGenreF}
+        list={favs}
+        toggles={[
+          { id: 'rewatch', label: 'Para volver a ver', icon: 'repeat', count: rewatchItems.length, on: rewatchF, onToggle: () => (setRewatchF(!rewatchF), setWithF(null)) },
+          { id: 'classic', label: 'Clásicos', icon: 'award', count: favs.filter((e) => e.classic).length, on: classicF, onToggle: () => setClassicF(!classicF) },
+        ]}
+      />
+      {rewatchF && <CompanionFilter items={rewatchItems} value={withF} onChange={setWithF} label="Filtrar por con quién volver a verla" />}
 
       {sort === 'fav' && (
         <p className="faint small" style={{ marginTop: 10 }}>
@@ -282,6 +301,7 @@ function SortableRow({ e, rankNo, disabled }: { e: Entry; rankNo?: number; disab
 
 function SeenRow({ e, rankNo, handle, rowRef, style, dragging }: { e: Entry; rankNo?: number; handle?: React.ReactNode; rowRef?: (el: HTMLElement | null) => void; style?: React.CSSProperties; dragging?: boolean }) {
   const openRate = useSheets((s) => s.openRate);
+  const openWith = useSheets((s) => s.openWith);
   const s = e.snap;
   return (
     <div className={`mrow ${dragging ? 'dragging' : ''}`} ref={rowRef} style={style}>
@@ -315,6 +335,12 @@ function SeenRow({ e, rankNo, handle, rowRef, style, dragging }: { e: Entry; ran
             <span className="link small">Calificar</span>
           )}
         </button>
+        {e.rewatch && (
+          <button className="with-line set" onClick={() => openWith(summaryFromSnap(s))} aria-label={`Con quién volver a ver ${s.title}`}>
+            <Icon name="repeat" size={14} />
+            <span className="ellipsis">{e.withWho?.length ? `Volver a ver · ${e.withWho.join(' · ')}` : 'Volver a ver · ¿con quién?'}</span>
+          </button>
+        )}
       </div>
       {handle}
     </div>
@@ -323,22 +349,51 @@ function SeenRow({ e, rankNo, handle, rowRef, style, dragging }: { e: Entry; ran
 
 const NO_ONE = '__nadie__';
 
+const matchesWith = (e: Entry, withF: string | null) => withF === null || (withF === NO_ONE ? !e.withWho?.length : !!e.withWho?.includes(withF));
+
+/** Fila de filtro "Con quién": cualquiera, cada etiqueta (con cantidad) o sin asignar. */
+function CompanionFilter({ items, value, onChange, label }: { items: Entry[]; value: string | null; onChange: (v: string | null) => void; label: string }) {
+  const companions = useStore((s) => s.companions);
+  if (!companions.length) return null;
+  return (
+    <div className="chips" style={{ marginTop: 10 }} aria-label={label}>
+      <span className="chip-label">
+        <Icon name="users" size={16} /> Con
+      </span>
+      <button className={`chip ${value === null ? 'on' : ''}`} onClick={() => onChange(null)}>
+        Cualquiera
+      </button>
+      {companions.map((c) => (
+        <button key={c} className={`chip ${value === c ? 'on' : ''}`} onClick={() => onChange(value === c ? null : c)}>
+          {c} <span className="faint">{items.filter((e) => e.withWho?.includes(c)).length}</span>
+        </button>
+      ))}
+      <button className={`chip ${value === NO_ONE ? 'on' : ''}`} onClick={() => onChange(value === NO_ONE ? null : NO_ONE)}>
+        Sin asignar <span className="faint">{items.filter((e) => !e.withWho?.length).length}</span>
+      </button>
+    </div>
+  );
+}
+
 function Want() {
   const entries = useStore((s) => s.entries);
-  const companions = useStore((s) => s.companions);
   const openRate = useSheets((s) => s.openRate);
   const openActions = useSheets((s) => s.openActions);
   const openWith = useSheets((s) => s.openWith);
   const [withF, setWithF] = useState<string | null>(null);
-  const [sort, setSort] = useState<'recent' | 'imdb' | 'year' | 'title'>('recent');
+  const [sort, setSort] = useState<'desire' | 'recent' | 'imdb' | 'year' | 'title'>('desire');
   const [typeF, setTypeF] = useState<TypeF>('all');
   const [genreF, setGenreF] = useState<number | null>(null);
   const all = Object.values(entries).filter((e) => e.status === 'want');
   const list = all
     .filter((e) => (typeF === 'all' || e.snap.type === typeF) && (genreF === null || e.snap.genreIds.includes(genreF)))
-    .filter((e) => withF === null || (withF === NO_ONE ? !e.withWho?.length : e.withWho?.includes(withF)))
+    .filter((e) => matchesWith(e, withF))
     .sort((a, b) =>
-      sort === 'recent' ? b.addedAt - a.addedAt : sort === 'imdb' ? imdbNum(b) - imdbNum(a) : sort === 'year' ? (b.snap.year ?? '').localeCompare(a.snap.year ?? '') : a.snap.title.localeCompare(b.snap.title, 'es'),
+      sort === 'desire'
+        ? (b.desire ?? 0) - (a.desire ?? 0) || b.addedAt - a.addedAt
+        : sort === 'recent'
+          ? b.addedAt - a.addedAt
+          : sort === 'imdb' ? imdbNum(b) - imdbNum(a) : sort === 'year' ? (b.snap.year ?? '').localeCompare(a.snap.year ?? '') : a.snap.title.localeCompare(b.snap.title, 'es'),
     );
 
   if (all.length === 0)
@@ -353,33 +408,14 @@ function Want() {
       <div className="row" style={{ marginTop: 12, justifyContent: 'space-between' }}>
         <span className="muted small">{all.length} para ver</span>
         <select className="input" style={{ height: 34, width: 'auto', fontSize: 14, borderRadius: 999 }} value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Ordenar">
+          <option value="desire">Más ganas primero</option>
           <option value="recent">Agregadas recientemente</option>
           <option value="imdb">Nota de IMDb</option>
           <option value="year">Año</option>
           <option value="title">Título (A-Z)</option>
         </select>
       </div>
-      {companions.length > 0 && (
-        <div className="chips" style={{ marginTop: 10 }} aria-label="Filtrar por con quién verla">
-          <span className="chip-label">
-            <Icon name="users" size={16} /> Con
-          </span>
-          <button className={`chip ${withF === null ? 'on' : ''}`} onClick={() => setWithF(null)}>
-            Cualquiera
-          </button>
-          {companions.map((c) => {
-            const n = all.filter((e) => e.withWho?.includes(c)).length;
-            return (
-              <button key={c} className={`chip ${withF === c ? 'on' : ''}`} onClick={() => setWithF(withF === c ? null : c)}>
-                {c} <span className="faint">{n}</span>
-              </button>
-            );
-          })}
-          <button className={`chip ${withF === NO_ONE ? 'on' : ''}`} onClick={() => setWithF(withF === NO_ONE ? null : NO_ONE)}>
-            Sin asignar <span className="faint">{all.filter((e) => !e.withWho?.length).length}</span>
-          </button>
-        </div>
-      )}
+      <CompanionFilter items={all} value={withF} onChange={setWithF} label="Filtrar por con quién verla" />
       <Filters typeF={typeF} setTypeF={setTypeF} genreF={genreF} setGenreF={setGenreF} list={all} />
       {list.length === 0 && <p className="muted small center" style={{ marginTop: 24 }}>No hay películas con esos filtros.</p>}
       <div style={{ marginTop: 6 }}>
@@ -402,10 +438,13 @@ function Want() {
                   </div>
                   {s.directors?.[0] && <div className="sub ellipsis">{s.directors.map((d) => d.name).join(', ')}</div>}
                 </Link>
-                <button className={`with-line ${e.withWho?.length ? 'set' : ''}`} onClick={() => openWith(summaryFromSnap(s))} aria-label={`Con quién ver ${s.title}`}>
-                  <Icon name="users" size={14} />
-                  <span className="ellipsis">{e.withWho?.length ? e.withWho.join(' · ') : '¿Con quién?'}</span>
-                </button>
+                <div className="row wrap" style={{ gap: '2px 8px', marginTop: 4 }}>
+                  <Desire k={e.key} />
+                  <button className={`with-line ${e.withWho?.length ? 'set' : ''}`} style={{ marginTop: 0 }} onClick={() => openWith(summaryFromSnap(s))} aria-label={`Con quién ver ${s.title}`}>
+                    <Icon name="users" size={14} />
+                    <span className="ellipsis">{e.withWho?.length ? e.withWho.join(' · ') : '¿Con quién?'}</span>
+                  </button>
+                </div>
               </div>
               <button className="btn small" onClick={() => openRate(summaryFromSnap(s))}>
                 <Icon name="eye" size={16} /> La vi

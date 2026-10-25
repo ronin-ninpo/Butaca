@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { infoOf, useSheets } from '../lib/sheets';
 import { useStore } from '../lib/store';
 import { keyOf } from '../lib/types';
-import { mark, unmark } from '../lib/actions';
+import { mark, toggleRewatch, unmark } from '../lib/actions';
 import { fmtRating, ratingLabel } from '../lib/rating';
 import { Stars } from './Stars';
 import { Poster } from './Poster';
@@ -45,12 +45,14 @@ export function Sheets() {
   const [stars, setStars] = useState(0);
   const [legend, setLegend] = useState(false);
   const [classic, setClassic] = useState(false);
+  const [rewatch, setRewatch] = useState(false);
 
   useEffect(() => {
     const seen = entry?.status === 'seen';
     setStars(seen ? entry.rating ?? 0 : 0);
     setLegend(seen ? !!entry.legend : false);
     setClassic(seen ? !!entry.classic : false);
+    setRewatch(seen ? !!entry.rewatch : false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, key]);
 
@@ -64,7 +66,7 @@ export function Sheets() {
     setLegend(!legend);
   };
   const save = () => {
-    mark(target, 'seen', stars || undefined, { legend, classic });
+    mark(target, 'seen', stars || undefined, { legend, classic, rewatch });
     close();
   };
 
@@ -118,7 +120,15 @@ export function Sheets() {
               </span>
               <span className="check">{classic && <Icon name="check" size={14} stroke={3} />}</span>
             </button>
-            <button className="btn primary block" style={{ marginTop: 14 }} onClick={save} disabled={!stars && !legend && !classic}>
+            <button className={`legend-btn rewatch ${rewatch ? 'on' : ''}`} aria-pressed={rewatch} onClick={() => setRewatch(!rewatch)}>
+              <Icon name="repeat" size={24} />
+              <span>
+                <b>Para volver a ver</b>
+                <span className="small">Sigue en tus vistas; después elegís con quién</span>
+              </span>
+              <span className="check">{rewatch && <Icon name="check" size={14} stroke={3} />}</span>
+            </button>
+            <button className="btn primary block" style={{ marginTop: 14 }} onClick={save} disabled={!stars && !legend && !classic && !rewatch}>
               Guardar
             </button>
             <div className="opts">
@@ -162,6 +172,22 @@ export function Sheets() {
                 <Icon name="users" /> {entry.withWho?.length ? `Con ${entry.withWho.join(', ')}` : '¿Con quién la querés ver?'}
               </button>
             )}
+            {entry?.status === 'seen' && (
+              <button
+                className={`opt ${entry.rewatch ? 'on' : ''}`}
+                onClick={() => {
+                  toggleRewatch(key);
+                  close();
+                }}
+              >
+                <Icon name="repeat" /> {entry.rewatch ? 'Ya no quiero volver a verla' : 'Para volver a ver'}
+              </button>
+            )}
+            {entry?.status === 'seen' && entry.rewatch && (
+              <button className="opt" onClick={() => openWith(target)}>
+                <Icon name="users" /> {entry.withWho?.length ? `Volver a verla con ${entry.withWho.join(', ')}` : '¿Con quién la querés volver a ver?'}
+              </button>
+            )}
             <button className={`opt ${entry?.status === 'seen' ? 'on' : ''}`} onClick={() => openRate(target)}>
               <Icon name="eye" /> {entry?.status === 'seen' ? 'Cambiar mi calificación' : 'Ya la vi…'}
             </button>
@@ -195,6 +221,7 @@ export function Sheets() {
 /** Elegir con quién ver la película, crear etiquetas nuevas y editarlas. */
 function WithPanel({ k, onDone }: { k: string; onDone: () => void }) {
   const selected = useStore((s) => s.entries[k]?.withWho) ?? [];
+  const isSeen = useStore((s) => s.entries[k]?.status === 'seen');
   const companions = useStore((s) => s.companions);
   const { setWithWho, addCompanion } = useStore.getState();
   const [text, setText] = useState('');
@@ -213,7 +240,7 @@ function WithPanel({ k, onDone }: { k: string; onDone: () => void }) {
   return (
     <>
       <p className="muted" style={{ marginTop: 16 }}>
-        ¿Con quién la querés ver?
+        {isSeen ? '¿Con quién la querés volver a ver?' : '¿Con quién la querés ver?'}
       </p>
       {companions.length ? (
         <div className="tag-grid" style={{ marginTop: 10 }}>

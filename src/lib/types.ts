@@ -49,6 +49,10 @@ export interface Entry {
   legend?: boolean;
   /** Clásico: una película que marcó una época (no cambia el ranking) */
   classic?: boolean;
+  /** Ganas de verla (solo en Quiero ver): 1 algún día, 2 tengo ganas, 3 muchas ganas */
+  desire?: 1 | 2 | 3;
+  /** Vista, pero la quiero volver a ver (sigue en Vistas) */
+  rewatch?: boolean;
   /** Con quién la querés ver (nombres de etiquetas) */
   withWho?: string[];
   addedAt: number;
@@ -68,6 +72,7 @@ export type FavKind = 'actor' | 'director';
 export interface Marks {
   legend?: boolean;
   classic?: boolean;
+  rewatch?: boolean;
 }
 
 export const keyOf = (type: MediaType, id: number) => `${type}:${id}`;

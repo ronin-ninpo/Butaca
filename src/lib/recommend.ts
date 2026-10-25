@@ -97,7 +97,9 @@ export async function buildRecommendations(input: RecInput): Promise<RecResult> 
         w: e.legend ? 1.3 : (e.rating ?? 0) >= 4.5 ? 1 : 0.6,
         why: e.legend ? `Porque «${e.snap.title}» es una de tus leyendas` : `Porque te gustó «${e.snap.title}»`,
       })),
-    ...shuffleTail(wants.sort(byRecent), 2).slice(0, 4).map((e) => ({ e, w: 0.35, why: `Porque querés ver «${e.snap.title}»` })),
+    ...shuffleTail(wants.sort((a, b) => (b.desire ?? 0) - (a.desire ?? 0) || byRecent(a, b)), 2)
+      .slice(0, 4)
+      .map((e) => ({ e, w: 0.3 + (e.desire ?? 1) * 0.07, why: `Porque querés ver «${e.snap.title}»` })),
   ];
 
   const tasks: Promise<void>[] = [];
