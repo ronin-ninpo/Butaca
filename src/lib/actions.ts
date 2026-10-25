@@ -76,7 +76,9 @@ export function mark(target: MediaSummary | Details, status: Status, rating?: nu
         ? `«${t}» agregada a Quiero ver`
         : status === 'seen'
           ? ratingText(t, rating, marks)
-          : `No te vamos a recomendar «${t}»`;
+          : status === 'later'
+            ? `«${t}» quedó en «Ahora no»: la revisás desde Para vos`
+            : `No te vamos a recomendar «${t}»`;
     toast(msg, { label: 'Deshacer', run: undo });
   }
 }

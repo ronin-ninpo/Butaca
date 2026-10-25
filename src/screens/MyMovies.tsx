@@ -38,7 +38,7 @@ export function MyMovies() {
   const navigate = useNavigate();
   const entries = useStore((s) => s.entries);
   const counts = useMemo(() => {
-    const c = { seen: 0, want: 0, skip: 0 };
+    const c = { seen: 0, want: 0, skip: 0, later: 0 };
     for (const e of Object.values(entries)) c[e.status]++;
     return c;
   }, [entries]);

@@ -6,7 +6,7 @@ import { buildRecommendations, type Candidate } from '../lib/recommend';
 import { getDetails, img, type Details } from '../lib/tmdb';
 import { useGenreMap, useGenres } from '../lib/useGenres';
 import { mark } from '../lib/actions';
-import { useSheets } from '../lib/sheets';
+import { summaryFromSnap, useSheets } from '../lib/sheets';
 import { keyOf, type MediaType } from '../lib/types';
 import { TopBar, SettingsButton } from '../components/Bars';
 import { Poster } from '../components/Poster';
@@ -37,7 +37,8 @@ export function ForYou() {
   const entries = useStore((s) => s.entries);
   const [typeF, setTypeF] = useState<TypeFilter>(() => readPref('butaca.fy.type', 'movie'));
   const [genresF, setGenresF] = useState<number[]>(() => readPref('butaca.fy.genres', []));
-  const [later, setLater] = useState<string[]>([]);
+  const [reviewLater, setReviewLater] = useState(false);
+  const [reviewed, setReviewed] = useState<string[]>([]);
   const [tick, setTick] = useState(0);
   const genreMap = useGenreMap();
   const effectiveType: TypeFilter = includeTv ? typeF : 'movie';
@@ -59,34 +60,48 @@ export function ForYou() {
     const list = recs.data?.candidates ?? [];
     return list.filter((c) => {
       const k = keyOf(c.item.type, c.item.id);
-      if (entries[k] || later.includes(k)) return false;
+      if (entries[k]) return false;
       if (genresF.length && !c.item.genreIds.some((g) => genresF.includes(g))) return false;
       return true;
     });
-  }, [recs.data, entries, later, genresF]);
+  }, [recs.data, entries, genresF]);
 
-  // Cuando se acaba el mazo, primero vuelven las "ahora no"; si tampoco hay, recalculamos.
+  // Las «Ahora no» no vuelven a aparecer solas: se revisan con su chip, de la más vieja a la más nueva.
+  const laterEntries = useMemo(
+    () =>
+      Object.values(entries)
+        .filter((e) => e.status === 'later' && types.includes(e.snap.type))
+        .sort((a, b) => a.addedAt - b.addedAt),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [entries, effectiveType],
+  );
+  const laterQueue = useMemo<Candidate[]>(
+    () =>
+      laterEntries
+        .filter((e) => !reviewed.includes(e.key) && (!genresF.length || e.snap.genreIds.some((g) => genresF.includes(g))))
+        .map((e) => ({ item: summaryFromSnap(e.snap), score: 0, reasons: [{ text: 'La dejaste para más adelante', w: 0 }] })),
+    [laterEntries, reviewed, genresF],
+  );
+
+  // Cuando el mazo se está por acabar, recalculamos.
   const lastAuto = useRef(0);
   useEffect(() => {
-    if (recs.loading || !recs.data) return;
-    if (queue.length === 0 && later.length) {
-      setLater([]);
-      return;
-    }
+    if (reviewLater || recs.loading || !recs.data) return;
     if (queue.length < 3 && recs.data.candidates.length >= 10 && Date.now() - lastAuto.current > 20_000) {
       lastAuto.current = Date.now();
       setTick((t) => t + 1);
     }
-  }, [queue.length, recs.loading, recs.data, later.length]);
+  }, [queue.length, recs.loading, recs.data, reviewLater]);
 
-  const current = queue[0];
+  const activeQueue = reviewLater ? laterQueue : queue;
+  const current = activeQueue[0];
   const ratedCount = Object.values(entries).filter((e) => e.status === 'seen' && (e.rating || e.legend)).length;
   const coldStart = ratedCount < 5;
 
   // Precarga de las próximas fichas para que el mazo sea fluido.
   useEffect(() => {
-    queue.slice(1, 3).forEach((c) => getDetails(c.item.type, c.item.id).catch(() => {}));
-  }, [queue]);
+    activeQueue.slice(1, 3).forEach((c) => getDetails(c.item.type, c.item.id).catch(() => {}));
+  }, [activeQueue]);
 
   const genreChips = (genreList.data ?? []).filter((g) => ![10770, 10763, 10764, 10767].includes(g.id));
 
@@ -119,6 +134,21 @@ export function ForYou() {
           />
         )}
         <div className="chips" style={{ marginTop: 10 }}>
+          {(laterEntries.length > 0 || reviewLater) && (
+            <>
+              <button
+                className={`chip ${reviewLater ? 'on' : ''}`}
+                aria-pressed={reviewLater}
+                onClick={() => {
+                  setReviewLater(!reviewLater);
+                  setReviewed([]);
+                }}
+              >
+                <Icon name="clock" size={15} /> Ahora no <span className="faint">{laterEntries.length}</span>
+              </button>
+              <span style={{ width: 1, background: 'var(--line)', flex: 'none' }} />
+            </>
+          )}
           <button className={`chip ${genresF.length === 0 ? 'on' : ''}`} onClick={() => setGenresF([])}>
             Todos los géneros
           </button>
@@ -133,7 +163,7 @@ export function ForYou() {
           ))}
         </div>
 
-        {coldStart && (
+        {coldStart && !reviewLater && (
           <div className="banner" style={{ marginTop: 12 }}>
             <Icon name="sparkles" size={18} />
             <div>
@@ -145,7 +175,34 @@ export function ForYou() {
       </div>
 
       <div style={{ marginTop: 12 }}>
-        {recs.loading && !current ? (
+        {reviewLater ? (
+          current ? (
+            <>
+              <p className="muted small page" style={{ marginBottom: 8 }}>
+                Revisando tus «Ahora no»: quedan {laterQueue.length}. Decidí qué hacer con cada una.
+              </p>
+              <Deck
+                key={keyOf(current.item.type, current.item.id)}
+                cand={current}
+                genreMap={genreMap}
+                onLater={() => setReviewed((r) => [...r, keyOf(current.item.type, current.item.id)])}
+              />
+            </>
+          ) : (
+            <Empty icon="clock" title={laterEntries.length ? 'Ya revisaste todas tus «Ahora no»' : 'No tenés películas en «Ahora no»'}>
+              <div className="row" style={{ justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
+                {laterEntries.length > 0 && reviewed.length > 0 && (
+                  <button className="btn" onClick={() => setReviewed([])}>
+                    <Icon name="refresh" size={18} /> Revisarlas de nuevo
+                  </button>
+                )}
+                <button className="btn primary" onClick={() => setReviewLater(false)}>
+                  Volver a las recomendaciones
+                </button>
+              </div>
+            </Empty>
+          )
+        ) : recs.loading && !current ? (
           <div className="page">
             <div className="skel" style={{ aspectRatio: '16/11', borderRadius: 22 }} />
             <div className="skel" style={{ height: 160, marginTop: 10, borderRadius: 22 }} />
@@ -160,15 +217,16 @@ export function ForYou() {
             </button>
           </Empty>
         ) : (
-          <Deck key={keyOf(current.item.type, current.item.id)} cand={current} genreMap={genreMap} onLater={() => setLater((l) => [...l, keyOf(current.item.type, current.item.id)])} />
+          <Deck key={keyOf(current.item.type, current.item.id)} cand={current} genreMap={genreMap} />
         )}
-        {recs.loading && current && <p className="center faint small" style={{ marginTop: 6 }}>Buscando más…</p>}
+        {!reviewLater && recs.loading && current && <p className="center faint small" style={{ marginTop: 6 }}>Buscando más…</p>}
       </div>
     </>
   );
 }
 
-function Deck({ cand, genreMap, onLater }: { cand: Candidate; genreMap: Map<number, string>; onLater: () => void }) {
+/** onLater: si se pasa (al revisar «Ahora no»), «Ahora no» solo salta a la siguiente; si no, la guarda en «Ahora no». */
+function Deck({ cand, genreMap, onLater }: { cand: Candidate; genreMap: Map<number, string>; onLater?: () => void }) {
   const it = cand.item;
   const det = useAsync<Details>(() => getDetails(it.type, it.id), [it.type, it.id]);
   const openRate = useSheets((s) => s.openRate);
@@ -186,7 +244,7 @@ function Deck({ cand, genreMap, onLater }: { cand: Candidate; genreMap: Map<numb
   };
   const want = () => fly('right', () => mark(target, 'want'));
   const skip = () => fly('left', () => mark(target, 'skip'));
-  const later = () => fly('down', onLater);
+  const later = () => fly('down', onLater ?? (() => mark(target, 'later')));
 
   const onDown = (e: React.PointerEvent) => {
     drag.current = { x: e.clientX, y: e.clientY, active: false };

@@ -1,5 +1,6 @@
 export type MediaType = 'movie' | 'tv';
-export type Status = 'want' | 'seen' | 'skip';
+/** later = «Ahora no»: no se recomienda de nuevo, pero se puede revisar desde Para vos */
+export type Status = 'want' | 'seen' | 'skip' | 'later';
 
 export interface PersonRef {
   id: number;

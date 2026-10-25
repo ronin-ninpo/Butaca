@@ -152,10 +152,36 @@ try {
   s = await lib();
   assert(!Object.values(s.entries).some((e) => e.snap.title === prev), 'Deshacer revierte la última acción');
 
-  prev = await cardTitle();
+  const laterA = await cardTitle();
   await page.click('button[aria-label="Ahora no"]');
-  await waitNewCard(prev);
-  ok('«Ahora no» pasa a la siguiente sin marcarla');
+  await waitNewCard(laterA);
+  const laterB = await cardTitle();
+  await page.click('button[aria-label="Ahora no"]');
+  await waitNewCard(laterB);
+  s = await lib();
+  assert([laterA, laterB].every((t) => Object.values(s.entries).find((e) => e.snap.title === t)?.status === 'later'), `«Ahora no» guarda «${laterA}» y «${laterB}» para revisar después`);
+  assert((await page.locator('.chips .chip:has-text("Ahora no")').textContent()).includes('2'), 'aparece el chip «Ahora no» con 2, junto a los géneros');
+
+  console.log('Revisar «Ahora no»');
+  await page.click('.chips .chip:has-text("Ahora no")');
+  await page.waitForSelector('text=Revisando tus «Ahora no»');
+  assert((await cardTitle()) === laterA, 'la revisión empieza por la más vieja');
+  await shot('revisar-ahora-no');
+  await page.click('button[aria-label="Ahora no"]');
+  await waitNewCard(laterA);
+  assert((await cardTitle()) === laterB, '«Ahora no» durante la revisión pasa a la siguiente');
+  await page.click('button[aria-label="Quiero verla"]');
+  await page.waitForSelector('text=Ya revisaste todas tus «Ahora no»');
+  s = await lib();
+  assert(Object.values(s.entries).find((e) => e.snap.title === laterB)?.status === 'want' && Object.values(s.entries).find((e) => e.snap.title === laterA)?.status === 'later', `«${laterB}» pasó a Quiero ver y «${laterA}» sigue en «Ahora no»`);
+  await page.click('button:has-text("Revisarlas de nuevo")');
+  assert((await cardTitle()) === laterA, '«Revisarlas de nuevo» vuelve a mostrarla');
+  await page.click('button[aria-label="No me interesa"]');
+  await page.waitForSelector('text=No tenés películas en «Ahora no»');
+  ok('al no quedar ninguna, avisa que no hay «Ahora no»');
+  await page.click('button:has-text("Volver a las recomendaciones")');
+  await page.waitForSelector('.rec-card h2');
+  assert(!(await page.isVisible('.chips .chip:has-text("Ahora no")')), 'sin «Ahora no» pendientes el chip desaparece');
 
   await page.click('button[aria-label="Actualizar recomendaciones"]');
   await page.waitForTimeout(600);
@@ -273,6 +299,7 @@ try {
   console.log('Quiero ver');
   const wantRows = page.locator('.mrow');
   assert((await wantRows.count()) >= 2, `${await wantRows.count()} películas en Quiero ver`);
+  const wantCount = await wantRows.count();
   const t0 = await wantRows.nth(0).locator('.t').textContent();
   const t1 = await wantRows.nth(1).locator('.t').textContent();
 
@@ -310,7 +337,7 @@ try {
   await filterChip('Familia').click();
   assert((await wantRows.count()) === 2, 'filtrar por Familia muestra 2');
   await filterChip('Sin asignar').click();
-  assert((await wantRows.count()) === 0 && (await page.isVisible('text=No hay películas con esos filtros')), 'filtrar «Sin asignar» muestra 0');
+  assert((await wantRows.count()) === wantCount - 2, `filtrar «Sin asignar» muestra ${wantCount - 2}`);
   await filterChip('Cualquiera').click();
 
   await wantRows.nth(0).locator('.with-line').click();

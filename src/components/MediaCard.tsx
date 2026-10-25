@@ -32,6 +32,12 @@ export function StatusBadge({ k }: { k: string }) {
         <Icon name="bookmark" size={11} fill stroke={2.5} />
       </span>
     );
+  if (e.status === 'later')
+    return (
+      <span className="status-badge skip" title="Ahora no">
+        <Icon name="clock" size={11} stroke={3} />
+      </span>
+    );
   return (
     <span className="status-badge skip" title="No me interesa">
       <Icon name="ban" size={11} stroke={3} />

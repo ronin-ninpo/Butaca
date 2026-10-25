@@ -191,6 +191,17 @@ export function Sheets() {
             <button className={`opt ${entry?.status === 'seen' ? 'on' : ''}`} onClick={() => openRate(target)}>
               <Icon name="eye" /> {entry?.status === 'seen' ? 'Cambiar mi calificación' : 'Ya la vi…'}
             </button>
+            {entry?.status === 'later' && (
+              <button
+                className="opt on"
+                onClick={() => {
+                  unmark(key);
+                  close();
+                }}
+              >
+                <Icon name="clock" /> Sacar de «Ahora no»
+              </button>
+            )}
             <button
               className={`opt ${entry?.status === 'skip' ? 'on' : ''}`}
               onClick={() => {

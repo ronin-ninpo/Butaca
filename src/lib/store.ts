@@ -102,7 +102,7 @@ export const useStore = create<LibraryState>()(
             addedAt: prev?.status === status ? prev.addedAt : now,
             seenAt: status === 'seen' ? (prev?.status === 'seen' ? prev.seenAt : now) : undefined,
             updatedAt: now,
-            withWho: status !== 'skip' && prev?.withWho?.length ? prev.withWho : undefined,
+            withWho: (status === 'want' || status === 'seen') && prev?.withWho?.length ? prev.withWho : undefined,
             snap: { ...prev?.snap, ...snap },
           };
           let order = s.order;
