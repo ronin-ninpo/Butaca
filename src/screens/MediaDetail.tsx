@@ -12,6 +12,8 @@ import { MediaStrip } from '../components/MediaCard';
 import { ErrorBox, Spinner } from '../components/Misc';
 import { Icon } from '../components/Icon';
 import { fmtRuntime } from './ForYou';
+import { useSheets } from '../lib/sheets';
+import { useSocial } from '../lib/social';
 
 const COUNTRY: Record<string, string> = { AR: 'Argentina', MX: 'México', CL: 'Chile', CO: 'Colombia', PE: 'Perú', UY: 'Uruguay', PY: 'Paraguay', BO: 'Bolivia', EC: 'Ecuador', VE: 'Venezuela', CR: 'Costa Rica', GT: 'Guatemala', PA: 'Panamá', DO: 'Rep. Dominicana', US: 'EE. UU.', ES: 'España' };
 
@@ -25,6 +27,8 @@ export function MediaDetail() {
   const k = keyOf(t, nid);
   const hasEntry = useStore((s) => !!s.entries[k]);
   const updateSnap = useStore((s) => s.updateSnap);
+  const openShare = useSheets((s) => s.openShare);
+  const socialReady = useSocial((s) => s.ready);
 
 
   // Si ya estaba en tus listas, refrescamos lo guardado (reparto, dirección) con la ficha completa.
@@ -119,8 +123,14 @@ export function MediaDetail() {
           {d.overviewLang === 'en' && <p className="faint small" style={{ marginTop: 6 }}>Sinopsis en inglés: no hay versión en español.</p>}
         </section>
 
+        {socialReady && (
+          <button className="btn block outline" style={{ marginTop: 16 }} onClick={() => openShare(d)}>
+            <Icon name="users" size={18} /> Recomendar a alguien
+          </button>
+        )}
+
         {d.trailer && (
-          <a className="btn block" style={{ marginTop: 16 }} href={`https://www.youtube.com/watch?v=${d.trailer.key}`} target="_blank" rel="noreferrer">
+          <a className="btn block" style={{ marginTop: socialReady ? 10 : 16 }} href={`https://www.youtube.com/watch?v=${d.trailer.key}`} target="_blank" rel="noreferrer">
             <Icon name="play" fill size={18} /> Ver tráiler
           </a>
         )}

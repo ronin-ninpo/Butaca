@@ -1,8 +1,43 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isPublic(userId) {
+      return get(/databases/$(database)/documents/profiles/$(userId)).data.public == true;
+    }
+
+    // Tus listas, calificaciones y claves: solo vos.
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Perfil público: lo ve cualquier usuario con sesión si lo marcaste visible; solo vos lo editás.
+    match /profiles/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || resource.data.public == true);
+      allow write: if signedIn() && request.auth.uid == userId;
+
+      match /data/{docId} {
+        allow read: if signedIn() && (request.auth.uid == userId || isPublic(userId));
+        allow write: if signedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // Recomendaciones recibidas: solo quien las recibe las lee, marca o borra.
+    // Las manda cualquier usuario con perfil, firmadas con su propio nombre, a alguien con perfil visible.
+    match /inbox/{userId}/items/{itemId} {
+      allow read, delete: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['handled']);
+      allow create: if signedIn()
+        && request.auth.uid != userId
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.fromName == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.name
+        && request.resource.data.note is string && request.resource.data.note.size() <= 300
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.handled == false
+        && isPublic(userId);
     }
   }
 }

@@ -16,7 +16,7 @@ import { Stars } from '../components/Stars';
 import { Empty, Segmented } from '../components/Misc';
 import { Icon } from '../components/Icon';
 import { Desire } from '../components/Desire';
-import { GROUP_ORDER, fmtAvg, fmtRating, groupOf, groupRank } from '../lib/rating';
+import { GROUP_ORDER, favoritesOrder, fmtAvg, fmtRating, groupOf } from '../lib/rating';
 
 type Tab = 'vistas' | 'quiero' | 'descartadas';
 type SeenSort = 'fav' | 'recent' | 'year' | 'imdb' | 'title';
@@ -24,13 +24,6 @@ type TypeF = 'all' | MediaType;
 
 const imdbNum = (e: Entry) => (e.snap.imdbRating ? parseFloat(e.snap.imdbRating) : -1);
 
-/** Vistas ordenadas como "mis favoritas": leyendas, después por estrellas y, dentro de cada grupo, por el orden manual. */
-export function favoritesOrder(entries: Record<string, Entry>, order: string[]) {
-  const pos = new Map(order.map((k, i) => [k, i]));
-  return Object.values(entries)
-    .filter((e) => e.status === 'seen')
-    .sort((a, b) => groupRank(b) - groupRank(a) || (pos.get(a.key) ?? 1e9) - (pos.get(b.key) ?? 1e9) || (b.seenAt ?? 0) - (a.seenAt ?? 0));
-}
 
 export function MyMovies() {
   const { tab: tabParam } = useParams();

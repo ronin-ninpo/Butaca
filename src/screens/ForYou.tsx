@@ -7,6 +7,7 @@ import { getDetails, img, type Details } from '../lib/tmdb';
 import { useGenreMap, useGenres } from '../lib/useGenres';
 import { mark } from '../lib/actions';
 import { summaryFromSnap, useSheets } from '../lib/sheets';
+import { pendingInbox, useSocial, type InboxItem } from '../lib/social';
 import { keyOf, type MediaType } from '../lib/types';
 import { TopBar, SettingsButton } from '../components/Bars';
 import { Poster } from '../components/Poster';
@@ -39,6 +40,10 @@ export function ForYou() {
   const [genresF, setGenresF] = useState<number[]>(() => readPref('butaca.fy.genres', []));
   const [reviewLater, setReviewLater] = useState(false);
   const [reviewed, setReviewed] = useState<string[]>([]);
+  const [inboxMode, setInboxMode] = useState(false);
+  const [skippedInbox, setSkippedInbox] = useState<string[]>([]);
+  const inbox = useSocial((s) => s.inbox);
+  const pendingCount = useMemo(() => new Set(pendingInbox(inbox).map((i) => i.key)).size, [inbox]);
   const [tick, setTick] = useState(0);
   const genreMap = useGenreMap();
   const effectiveType: TypeFilter = includeTv ? typeF : 'movie';
@@ -83,17 +88,36 @@ export function ForYou() {
     [laterEntries, reviewed, genresF],
   );
 
+  // Recomendaciones de la Comunidad sin resolver, de la más vieja a la más nueva (una tarjeta por película).
+  const inboxQueue = useMemo<Candidate[]>(() => {
+    const byKey = new Map<string, InboxItem[]>();
+    for (const it of [...pendingInbox(inbox)].reverse()) byKey.set(it.key, [...(byKey.get(it.key) ?? []), it]);
+    return [...byKey.values()]
+      .filter((items) => !skippedInbox.includes(items[0].key))
+      .map((items) => {
+        const it = items[0];
+        const names = [...new Set(items.map((i) => i.fromName))].join(' y ');
+        const notes = items.filter((i) => i.note).map((i) => `${i.fromName}: «${i.note}»`);
+        return {
+          item: { type: it.type, id: it.tmdbId, title: it.title, year: it.year ?? undefined, poster: it.poster, genreIds: [] },
+          score: 0,
+          reasons: [{ text: `Te la recomendó ${names}`, w: 0 }],
+          note: notes.join('  ·  ') || undefined,
+        };
+      });
+  }, [inbox, skippedInbox]);
+
   // Cuando el mazo se está por acabar, recalculamos.
   const lastAuto = useRef(0);
   useEffect(() => {
-    if (reviewLater || recs.loading || !recs.data) return;
+    if (reviewLater || inboxMode || recs.loading || !recs.data) return;
     if (queue.length < 3 && recs.data.candidates.length >= 10 && Date.now() - lastAuto.current > 20_000) {
       lastAuto.current = Date.now();
       setTick((t) => t + 1);
     }
-  }, [queue.length, recs.loading, recs.data, reviewLater]);
+  }, [queue.length, recs.loading, recs.data, reviewLater, inboxMode]);
 
-  const activeQueue = reviewLater ? laterQueue : queue;
+  const activeQueue = inboxMode ? inboxQueue : reviewLater ? laterQueue : queue;
   const current = activeQueue[0];
   const ratedCount = Object.values(entries).filter((e) => e.status === 'seen' && (e.rating || e.legend)).length;
   const coldStart = ratedCount < 5;
@@ -134,6 +158,19 @@ export function ForYou() {
           />
         )}
         <div className="chips" style={{ marginTop: 10 }}>
+          {(pendingCount > 0 || inboxMode) && (
+            <button
+              className={`chip ${inboxMode ? 'on' : ''}`}
+              aria-pressed={inboxMode}
+              onClick={() => {
+                setInboxMode(!inboxMode);
+                setSkippedInbox([]);
+                setReviewLater(false);
+              }}
+            >
+              <Icon name="users" size={15} /> Te recomendaron <span className="faint">{pendingCount}</span>
+            </button>
+          )}
           {(laterEntries.length > 0 || reviewLater) && (
             <>
               <button
@@ -142,6 +179,7 @@ export function ForYou() {
                 onClick={() => {
                   setReviewLater(!reviewLater);
                   setReviewed([]);
+                  setInboxMode(false);
                 }}
               >
                 <Icon name="clock" size={15} /> Ahora no <span className="faint">{laterEntries.length}</span>
@@ -163,7 +201,7 @@ export function ForYou() {
           ))}
         </div>
 
-        {coldStart && !reviewLater && (
+        {coldStart && !reviewLater && !inboxMode && (
           <div className="banner" style={{ marginTop: 12 }}>
             <Icon name="sparkles" size={18} />
             <div>
@@ -175,7 +213,34 @@ export function ForYou() {
       </div>
 
       <div style={{ marginTop: 12 }}>
-        {reviewLater ? (
+        {inboxMode ? (
+          current ? (
+            <>
+              <p className="muted small page" style={{ marginBottom: 8 }}>
+                Recomendaciones de la comunidad: quedan {inboxQueue.length}.
+              </p>
+              <Deck
+                key={keyOf(current.item.type, current.item.id)}
+                cand={current}
+                genreMap={genreMap}
+                onLater={() => setSkippedInbox((r) => [...r, keyOf(current.item.type, current.item.id)])}
+              />
+            </>
+          ) : (
+            <Empty icon="users" title={pendingCount ? 'Ya viste todas las recomendaciones' : 'No tenés recomendaciones pendientes'}>
+              <div className="row" style={{ justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
+                {pendingCount > 0 && (
+                  <button className="btn" onClick={() => setSkippedInbox([])}>
+                    <Icon name="refresh" size={18} /> Verlas de nuevo
+                  </button>
+                )}
+                <button className="btn primary" onClick={() => setInboxMode(false)}>
+                  Volver a las recomendaciones
+                </button>
+              </div>
+            </Empty>
+          )
+        ) : reviewLater ? (
           current ? (
             <>
               <p className="muted small page" style={{ marginBottom: 8 }}>
@@ -219,7 +284,7 @@ export function ForYou() {
         ) : (
           <Deck key={keyOf(current.item.type, current.item.id)} cand={current} genreMap={genreMap} />
         )}
-        {!reviewLater && recs.loading && current && <p className="center faint small" style={{ marginTop: 6 }}>Buscando más…</p>}
+        {!reviewLater && !inboxMode && recs.loading && current && <p className="center faint small" style={{ marginTop: 6 }}>Buscando más…</p>}
       </div>
     </>
   );
@@ -333,6 +398,7 @@ function Deck({ cand, genreMap, onLater }: { cand: Candidate; genreMap: Map<numb
                 <span>{cand.reasons[0].text}</span>
               </div>
             )}
+            {cand.note && <p className="note">{cand.note}</p>}
             {genres.length > 0 && (
               <div className="genre-tags" style={{ marginTop: 10 }}>
                 {genres.map((g) => (

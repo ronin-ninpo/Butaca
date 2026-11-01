@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Icon } from './Icon';
+import { pendingInbox, useSocial } from '../lib/social';
 
 export function TopBar({ title, back, right, brand }: { title: React.ReactNode; back?: boolean; right?: React.ReactNode; brand?: boolean }) {
   const navigate = useNavigate();
@@ -24,11 +25,28 @@ export function TopBar({ title, back, right, brand }: { title: React.ReactNode; 
   );
 }
 
+/** Botones de la barra superior: Comunidad (con recomendaciones sin ver) y Ajustes. */
 export function SettingsButton() {
+  const pending = useSocial((s) => pendingInbox(s.inbox).length);
   return (
-    <NavLink to="/ajustes" className="icon-btn" aria-label="Ajustes">
-      <Icon name="settings" size={20} />
-    </NavLink>
+    <>
+      <NavLink to="/comunidad" className="icon-btn badge-host" aria-label={pending ? `Comunidad: ${pending} recomendaciones nuevas` : 'Comunidad'}>
+        <Icon name="users" size={20} />
+        {pending > 0 && <span className="badge">{pending > 9 ? '9+' : pending}</span>}
+      </NavLink>
+      <NavLink to="/ajustes" className="icon-btn" aria-label="Ajustes">
+        <Icon name="settings" size={20} />
+      </NavLink>
+    </>
+  );
+}
+
+/** Avatar de una persona de la comunidad: su inicial sobre su color. */
+export function UserAvatar({ name, color, size = 44 }: { name: string; color: string; size?: number }) {
+  return (
+    <span className="user-avatar" style={{ width: size, height: size, fontSize: size * 0.42, background: color }} aria-hidden="true">
+      {name.trim()[0]?.toUpperCase() ?? '?'}
+    </span>
   );
 }
 

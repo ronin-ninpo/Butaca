@@ -13,6 +13,8 @@ import { PersonDetail } from './screens/PersonDetail';
 import { Settings } from './screens/Settings';
 import { Welcome } from './screens/Welcome';
 import { Account } from './screens/Account';
+import { Community } from './screens/Community';
+import { UserProfile } from './screens/UserProfile';
 
 function Layout() {
   const hasKey = useStore((s) => !!s.settings.tmdbKey);
@@ -46,6 +48,8 @@ export const router = createHashRouter([
       { path: '/ajustes', element: <Settings /> },
       { path: '/bienvenida', element: <Welcome /> },
       { path: '/cuenta', element: <Account /> },
+      { path: '/comunidad/:tab?', element: <Community /> },
+      { path: '/u/:uid', element: <UserProfile /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

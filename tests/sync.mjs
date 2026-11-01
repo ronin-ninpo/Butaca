@@ -109,7 +109,7 @@ const shot = async (dev, name) => {
   await dev.page.screenshot({ path: `${SHOTS}/sync-${String(++step).padStart(2, '0')}-${name}.png` });
 };
 
-let pc, cel, nuevo;
+let pc, cel, nuevo, bel;
 try {
   const t0 = Date.now() - 86400000;
   console.log('PC: tiene listas locales y crea la cuenta');
@@ -277,9 +277,121 @@ try {
   assert(asOther.status === 403 && anon.status === 403, `otra cuenta y alguien sin sesión NO pueden leer tus datos (${asOther.status}, ${anon.status})`);
   const write = await fetch(`${base}/entries/movie:1`, { method: 'PATCH', headers: { Authorization: `Bearer ${other.idToken}`, 'content-type': 'application/json' }, body: JSON.stringify({ fields: { key: { stringValue: 'x' } } }) });
   assert(write.status === 403, 'otra cuenta tampoco puede escribir en tus datos');
+
+  console.log('Comunidad');
+  await pc.page.goto(BASE + '#/comunidad');
+  await pc.page.waitForSelector('#pname');
+  await shot(pc, 'comunidad-crear-perfil');
+  await pc.page.fill('#pname', 'Nico');
+  await pc.page.fill('#pbio', 'Fan del cine de los 80');
+  await pc.page.click('form button[type=submit]');
+  await pc.page.waitForSelector('.segmented >> text=Personas');
+  ok('Nico crea su perfil');
+
+  bel = await device('Belén');
+  await seed(bel, {
+    entries: {
+      'movie:603': entry(603, 'Matrix', 'seen', 4.5, t0),
+      'movie:862': entry(862, 'Toy Story', 'seen', 5, t0),
+      'movie:238': entry(238, 'El padrino', 'seen', 4, t0),
+    },
+    order: ['movie:862', 'movie:603', 'movie:238'],
+    favActors: { 31: { id: 31, name: 'Tom Hanks', profile: null, addedAt: t0 } },
+    favDirectors: {},
+    settings: { tmdbKey: 'test-key', omdbKey: '', region: 'AR', language: 'es-MX', includeTv: true },
+  });
+  await bel.page.goto(BASE + '#/cuenta');
+  await bel.page.click('.segmented >> text=Crear cuenta');
+  await bel.page.fill('#email', 'belen@butaca.app');
+  await bel.page.fill('#pass', 'belen1234');
+  await bel.page.fill('#pass2', 'belen1234');
+  await bel.page.click('form button[type=submit]');
+  await bel.page.waitForURL(/#\/$/);
+  await bel.page.goto(BASE + '#/comunidad');
+  await bel.page.fill('#pname', 'Belén');
+  await bel.page.click('.color-dots button >> nth=3');
+  await bel.page.click('form button[type=submit]');
+  await bel.page.waitForSelector('.mrow:has-text("Nico")');
+  ok('Belén ve a Nico en «Personas»');
+  assert(!(await bel.page.isVisible('.mrow:has-text("Belén")')), 'en Personas no aparece una misma');
+  await shot(bel, 'comunidad-personas');
+  await bel.page.click('.mrow:has-text("Nico")');
+  await bel.page.waitForSelector('text=Sus leyendas');
+  const affText = await bel.page.textContent('.card:has-text("en común")');
+  assert(/Vieron 3 en común/.test(affText) && /Afinidad 78%/.test(affText), `perfil de Nico con leyendas y afinidad (${affText.trim()})`);
+  assert(await bel.page.isVisible('.mcard:has-text("El padrino")'), 'se ven sus películas con sus estrellas');
+  await shot(bel, 'perfil-de-nico');
+
+  await bel.page.goto(BASE + '#/t/movie/597');
+  await bel.page.click('button:has-text("Recomendar a alguien")');
+  await bel.page.click('.sheet .opt:has-text("Nico")');
+  await bel.page.fill('.sheet textarea[aria-label="Nota"]', '¡Llevá pañuelos!');
+  await shot(bel, 'recomendar');
+  await bel.page.click('.sheet button:has-text("Recomendar")');
+  await bel.page.waitForSelector('.toast:has-text("Le recomendaste «Titanic» a Nico")');
+  ok('Belén le recomienda «Titanic» a Nico con una nota');
+
+  await pc.page.goto(BASE + '#/');
+  await pc.page.waitForSelector('.chips .chip:has-text("Te recomendaron")', { timeout: 15000 });
+  assert((await pc.page.textContent('.topbar .badge')) === '1', 'a Nico le llega en vivo: numerito en Comunidad y chip en Para vos');
+  await pc.page.click('.chips .chip:has-text("Te recomendaron")');
+  await pc.page.waitForSelector('.rec-card h2:has-text("Titanic")');
+  assert((await pc.page.textContent('.rec-card .reason')).includes('Te la recomendó Belén') && (await pc.page.textContent('.rec-card .note')).includes('¡Llevá pañuelos!'), 'el mazo muestra quién la recomendó y su nota');
+  await shot(pc, 'te-recomendaron');
+  await pc.page.click('button[aria-label="Quiero verla"]');
+  await pc.page.waitForSelector('text=No tenés recomendaciones pendientes', { timeout: 15000 });
+  assert((await lib(pc)).entries['movie:597']?.status === 'want', 'al marcarla «Quiero verla» queda resuelta');
+  await pc.page.goto(BASE + '#/comunidad/recibidas');
+  await pc.page.waitForSelector('.mrow:has-text("Titanic")');
+  assert((await pc.page.textContent('.mrow:has-text("Titanic")')).includes('De Belén') && !(await pc.page.isVisible('.mrow .unread-dot')), '«Recibidas» la muestra como vista');
+  assert(!(await pc.page.isVisible('.topbar .badge')), 'el numerito desaparece');
+
+  // Nico oculta su perfil
+  await pc.page.goto(BASE + '#/comunidad/perfil');
+  await pc.page.click('button[aria-label="Perfil visible"]');
+  await pc.page.click('form button[type=submit]');
+  await pc.page.waitForSelector('text=Perfil oculto');
+  const nicoUid = uid;
+  const belUid = await bel.page.evaluate(() => JSON.parse(localStorage.getItem('butaca.sync.meta')).uid);
+  await bel.page.goto(BASE + '#/comunidad');
+  await bel.page.waitForSelector('text=Todavía no hay otras personas');
+  await bel.page.goto(BASE + `#/u/${nicoUid}`);
+  await bel.page.waitForSelector('text=Este perfil no está disponible');
+  ok('con el perfil oculto, Nico no aparece ni se puede abrir');
+
+  console.log('Seguridad de Comunidad');
+  const docs = `http://${EMU}:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
+  const belTok = (
+    await (
+      await fetch(`http://${EMU}:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'belen@butaca.app', password: 'belen1234', returnSecureToken: true }),
+      })
+    ).json()
+  ).idToken;
+  const as = (tok) => (tok ? { Authorization: `Bearer ${tok}` } : {});
+  const st = async (url, tok, init = {}) => (await fetch(url, { ...init, headers: { ...as(tok), 'content-type': 'application/json', ...(init.headers ?? {}) } })).status;
+  assert((await st(`${docs}/inbox/${nicoUid}/items`, belTok)) === 403, 'Belén no puede leer las recomendaciones de Nico');
+  assert((await st(`${docs}/profiles/${nicoUid}/data/library`, belTok)) === 403, 'nadie puede leer el detalle de un perfil oculto');
+  assert((await st(`${docs}/profiles/${belUid}/data/library`, other.idToken)) === 200 && (await st(`${docs}/profiles/${belUid}/data/library`)) === 403, 'un perfil visible lo ve quien tiene sesión, no alguien anónimo');
+  const fakeRec = (fromUid, fromName) =>
+    JSON.stringify({
+      fields: {
+        fromUid: { stringValue: fromUid },
+        fromName: { stringValue: fromName },
+        note: { stringValue: 'spam' },
+        handled: { booleanValue: false },
+        createdAt: { timestampValue: new Date().toISOString() },
+      },
+    });
+  assert((await st(`${docs}/inbox/${belUid}/items`, other.idToken, { method: 'POST', body: fakeRec(other.localId, 'Intruso') })) === 403, 'alguien sin perfil no puede mandar recomendaciones');
+  assert((await st(`${docs}/inbox/${belUid}/items`, other.idToken, { method: 'POST', body: fakeRec(nicoUid, 'Nico') })) === 403, 'nadie puede mandar recomendaciones haciéndose pasar por otro');
+  const pubText = JSON.stringify(await (await fetch(`${docs}/profiles/${belUid}/data/library`, { headers: as(other.idToken) })).json()) + JSON.stringify(await (await fetch(`${docs}/profiles/${belUid}`, { headers: as(other.idToken) })).json());
+  assert(!pubText.includes('belen@butaca.app') && !pubText.includes('test-key'), 'el perfil público no incluye email ni claves');
 } catch (e) {
   console.error('\n' + e.message);
-  for (const d of [pc, cel, nuevo].filter(Boolean)) await d.page.screenshot({ path: `${SHOTS}/sync-error-${d.name}.png` }).catch(() => {});
+  for (const d of [pc, cel, nuevo, bel].filter(Boolean)) await d.page.screenshot({ path: `${SHOTS}/sync-error-${d.name}.png` }).catch(() => {});
   process.exitCode = 1;
 } finally {
   const real = errors.filter((e) => !/401|Failed to load resource|ERR_INTERNET_DISCONNECTED|net::ERR|offline|Could not reach Cloud Firestore|WebChannelConnection|Firestore.*transport errored/i.test(e));

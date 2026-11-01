@@ -57,7 +57,7 @@ const ls = {
 
 type AuthMod = typeof import('firebase/auth');
 type FsMod = typeof import('firebase/firestore');
-interface Fb {
+export interface Fb {
   auth: Auth;
   db: Firestore;
   a: AuthMod;
@@ -169,6 +169,24 @@ export function authErrorMessage(e: unknown): string {
 // ---------- Sincronización ----------
 
 let current: { fb: Fb; uid: string } | null = null;
+
+export type Session = { fb: Fb; uid: string };
+const sessionListeners = new Set<(s: Session | null) => void>();
+let ready: Session | null = null;
+
+/** Avisa cuando hay una sesión lista (ya sincronizada) o cuando se cierra. Lo usa la parte social. */
+export function onSession(fn: (s: Session | null) => void) {
+  sessionListeners.add(fn);
+  if (ready) fn(ready);
+  return () => {
+    sessionListeners.delete(fn);
+  };
+}
+function setReady(s: Session | null) {
+  if (ready === s) return;
+  ready = s;
+  sessionListeners.forEach((fn) => fn(s));
+}
 let unsubs: (() => void)[] = [];
 let applying = false;
 let meta: LocalMeta | null = null;
@@ -255,10 +273,12 @@ async function start(fb: Fb, uid: string) {
   });
 
   useSync.setState({ status: 'synced', lastSyncAt: Date.now() });
+  setReady(current);
   await flush();
 }
 
 function stop() {
+  setReady(null);
   clearTimeout(timer);
   unsubs.forEach((u) => u());
   unsubs = [];

@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { router } from './App';
 import { pruneCache } from './lib/cache';
 import { initSync } from './lib/sync';
+import './lib/social'; // se conecta solo cuando hay sesión
 import './styles.css';
 
 createRoot(document.getElementById('root')!).render(<RouterProvider router={router} />);

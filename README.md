@@ -9,6 +9,7 @@ App para el celular (web instalable / PWA) para descubrir películas y series, a
 - **Mis pelis**: vistas, *Quiero ver* y descartadas. Las vistas se ordenan por estrellas y **dentro de cada grupo de estrellas las podés arrastrar** para armar tu ranking.
 - **Favoritos**: actores y directores marcados a mano, más un ranking automático según cómo calificaste lo que viste.
 - **Cuenta opcional (email y contraseña)**: con sesión iniciada, listas, calificaciones, favoritos y claves se sincronizan entre la PC y el celular (Firebase). Sin cuenta, todo queda solo en el dispositivo. En Ajustes también hay respaldo para exportar e importar.
+- **Comunidad** (con cuenta): perfil opcional y ocultable (nombre, frase, color); ver a otras personas con sus leyendas, ranking, últimas vistas, favoritos y la afinidad con vos; recomendarse películas con una nota, que llegan en vivo a «Comunidad → Recibidas» y al chip «Te recomendaron» de Para vos.
 - Calificación de **½ a 5 estrellas** (1 a 10) y marca de **Leyenda** para las favoritas de siempre, que encabezan el ranking.
 
 ## Claves necesarias (gratis)
@@ -22,7 +23,9 @@ Las claves se cargan la primera vez que abrís la app y quedan solo en tu celula
 
 - Proyecto de Firebase: `butaca-27341` (plan gratuito Spark). La configuración web está en `src/lib/sync.ts`; no es secreta.
 - **Authentication**: proveedor *Correo electrónico/contraseña* activado.
-- **Firestore**: cada usuario guarda `users/{uid}` (orden del ranking, favoritos, ajustes y claves) y `users/{uid}/entries/{tipo:id}` (un documento por título). Las reglas de `firestore.rules` permiten leer y escribir solo al dueño; si se cambian, hay que pegarlas en la consola de Firebase (Firestore → Reglas).
+- **Firestore**: cada usuario guarda `users/{uid}` (orden del ranking, favoritos, ajustes y claves) y `users/{uid}/entries/{tipo:id}` (un documento por título); solo el dueño los lee y escribe.
+- **Comunidad**: `profiles/{uid}` (resumen público: nombre, frase, color, estadísticas) y `profiles/{uid}/data/library` (vistas con estrellas, leyendas, clásicos, actores y directores favoritos; se borra si el perfil se oculta), y `inbox/{uid}/items` (recomendaciones recibidas: solo las lee quien las recibe; se crean firmadas con el nombre del perfil de quien manda).
+- Las reglas están en `firestore.rules`. Si se cambian, hay que pegarlas en la consola de Firebase (Firestore → Reglas → Publicar).
 - Al iniciar sesión se juntan las listas del dispositivo y de la nube (gana el cambio más reciente de cada título). Firebase se carga solo cuando hay sesión.
 
 ## Desarrollo

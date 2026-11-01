@@ -9,6 +9,8 @@ export interface Candidate {
   item: MediaSummary;
   score: number;
   reasons: { text: string; w: number }[];
+  /** Nota de quien te la recomendó (Comunidad) */
+  note?: string;
 }
 
 export interface RecInput {

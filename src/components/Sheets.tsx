@@ -8,6 +8,12 @@ import { fmtRating, ratingLabel } from '../lib/rating';
 import { Stars } from './Stars';
 import { Poster } from './Poster';
 import { Icon } from './Icon';
+import { Spinner } from './Misc';
+import { UserAvatar } from './Bars';
+import { loadDirectory, sendRecommendation, socialError, useSocial } from '../lib/social';
+import { useAsync } from '../lib/useAsync';
+import { toast } from '../lib/toast';
+import { Link } from 'react-router-dom';
 
 function useBackToClose(open: boolean, close: () => void) {
   // El botón "atrás" del celular cierra la hoja en vez de salir de la pantalla.
@@ -37,7 +43,8 @@ function afterSheetClosed(fn: () => void) {
 }
 
 export function Sheets() {
-  const { kind, target, close, openRate, openWith } = useSheets();
+  const { kind, target, close, openRate, openWith, openShare } = useSheets();
+  const socialReady = useSocial((s) => s.ready);
   const navigate = useNavigate();
   const info = target ? infoOf(target) : null;
   const key = info ? keyOf(info.type, info.id) : '';
@@ -73,7 +80,7 @@ export function Sheets() {
   return (
     <>
       <div className="scrim" onClick={close} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={kind === 'rate' ? 'Calificar' : kind === 'with' ? 'Con quién verla' : 'Opciones'}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={kind === 'rate' ? 'Calificar' : kind === 'with' ? 'Con quién verla' : kind === 'share' ? 'Recomendar' : 'Opciones'}>
         <div className="grab" />
         <div className="row" style={{ gap: 12, alignItems: 'center' }}>
           <Poster path={info.poster} title={info.title} size="w92" className="sheet-poster" />
@@ -85,6 +92,8 @@ export function Sheets() {
 
         {kind === 'with' ? (
           <WithPanel k={key} onDone={close} />
+        ) : kind === 'share' ? (
+          <SharePanel info={info} onDone={close} />
         ) : kind === 'rate' ? (
           <>
             <p className="center muted" style={{ marginTop: 18 }}>
@@ -212,6 +221,11 @@ export function Sheets() {
             >
               <Icon name="ban" /> {entry?.status === 'skip' ? 'Volver a recomendármela' : 'No me interesa'}
             </button>
+            {socialReady && (
+              <button className="opt" onClick={() => openShare(target)}>
+                <Icon name="users" /> Recomendar a alguien
+              </button>
+            )}
             <button
               className="opt"
               onClick={() => {
@@ -331,6 +345,90 @@ function TagEditor({ onBack }: { onBack: () => void }) {
       </div>
       <button className="btn block" style={{ marginTop: 16 }} onClick={onBack}>
         Volver
+      </button>
+    </>
+  );
+}
+
+/** Recomendar la película a una o varias personas de la comunidad, con una nota opcional. */
+function SharePanel({ info, onDone }: { info: ReturnType<typeof infoOf>; onDone: () => void }) {
+  const me = useSocial((s) => s.me);
+  const dir = useAsync(() => loadDirectory(), [], !!me);
+  const [to, setTo] = useState<string[]>([]);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  if (!me)
+    return (
+      <div style={{ marginTop: 16 }}>
+        <p className="muted">Para recomendar películas necesitás crear tu perfil en Comunidad.</p>
+        <Link className="btn primary block" style={{ marginTop: 12 }} to="/comunidad" onClick={onDone}>
+          Ir a Comunidad
+        </Link>
+      </div>
+    );
+
+  const people = dir.data ?? [];
+  const send = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await sendRecommendation(to, info, note);
+      const names = people.filter((p) => to.includes(p.uid)).map((p) => p.name);
+      toast(`Le recomendaste «${info.title}» a ${names.join(', ')}`);
+      onDone();
+    } catch (e) {
+      setErr(socialError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <p className="muted" style={{ marginTop: 16 }}>
+        ¿A quién se la recomendás?
+      </p>
+      {dir.loading ? (
+        <Spinner />
+      ) : dir.error ? (
+        <p className="err-msg">{socialError(dir.error)}</p>
+      ) : people.length === 0 ? (
+        <p className="faint small" style={{ marginTop: 8 }}>
+          Todavía no hay otras personas con perfil visible. Cuando alguien cree el suyo, vas a poder recomendarle.
+        </p>
+      ) : (
+        <div className="opts" style={{ marginTop: 8 }}>
+          {people.map((p) => {
+            const on = to.includes(p.uid);
+            return (
+              <button key={p.uid} className={`opt ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => setTo(on ? to.filter((x) => x !== p.uid) : [...to, p.uid])}>
+                <UserAvatar name={p.name} color={p.color} size={34} />
+                <span className="grow">{p.name}</span>
+                {on && <Icon name="check" size={18} stroke={3} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <textarea
+        className="input"
+        style={{ height: 'auto', padding: '10px 14px', marginTop: 12, resize: 'vertical' }}
+        rows={2}
+        maxLength={300}
+        placeholder="Una nota (opcional): ¿por qué se la recomendás?"
+        aria-label="Nota"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+      />
+      {err && (
+        <p className="err-msg" style={{ marginTop: 8 }}>
+          {err}
+        </p>
+      )}
+      <button className="btn primary block" style={{ marginTop: 14 }} disabled={!to.length || busy} onClick={send}>
+        {busy ? 'Enviando…' : to.length > 1 ? `Recomendar a ${to.length} personas` : 'Recomendar'}
       </button>
     </>
   );

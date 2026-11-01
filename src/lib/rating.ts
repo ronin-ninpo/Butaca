@@ -1,3 +1,5 @@
+import type { Entry } from './types';
+
 /** Calificación en estrellas de 0,5 a 5 (en pasos de media estrella, o sea 1 a 10) + la marca de "Leyenda". */
 
 const LABELS: Record<number, string> = {
@@ -33,3 +35,11 @@ export const groupRank = (e: { rating?: number; legend?: boolean }) => (e.legend
 
 /** Peso de gusto para recomendaciones y favoritos: una leyenda cuenta un poco más que 5 estrellas. */
 export const tasteScore = (e: { rating?: number; legend?: boolean }) => (e.rating ?? 0) + (e.legend ? 1 : 0);
+
+/** Vistas ordenadas como "mis favoritas": leyendas, después por estrellas y, dentro de cada grupo, por el orden manual. */
+export function favoritesOrder(entries: Record<string, Entry>, order: string[]) {
+  const pos = new Map(order.map((k, i) => [k, i]));
+  return Object.values(entries)
+    .filter((e) => e.status === 'seen')
+    .sort((a, b) => groupRank(b) - groupRank(a) || (pos.get(a.key) ?? 1e9) - (pos.get(b.key) ?? 1e9) || (b.seenAt ?? 0) - (a.seenAt ?? 0));
+}
