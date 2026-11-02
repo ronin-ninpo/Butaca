@@ -31,6 +31,7 @@ interface LibraryState {
   toggleFav: (kind: FavKind, p: PersonRef) => boolean;
   setWithWho: (key: string, names: string[]) => void;
   setRewatch: (key: string, on: boolean) => void;
+  setReview: (key: string, text: string, shared: boolean) => void;
   setDesire: (key: string, level: 1 | 2 | 3 | undefined) => void;
   /** Crea la etiqueta (si no existe una igual) y devuelve el nombre que quedó guardado. */
   addCompanion: (name: string) => string;
@@ -52,6 +53,8 @@ export interface RemotePatch {
   companions?: string[];
   settings?: Partial<Settings>;
 }
+
+export const REVIEW_MAX = 2000;
 
 const sameName = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' }) === 0;
 export const cleanName = (s: string) => s.trim().replace(/\s+/g, ' ').slice(0, 30);
@@ -103,6 +106,10 @@ export const useStore = create<LibraryState>()(
             seenAt: status === 'seen' ? (prev?.status === 'seen' ? prev.seenAt : now) : undefined,
             updatedAt: now,
             withWho: (status === 'want' || status === 'seen') && prev?.withWho?.length ? prev.withWho : undefined,
+            // La reflexión no se pierde si cambiás el estado (por ejemplo, para volver a verla).
+            review: prev?.review,
+            reviewAt: prev?.reviewAt,
+            reviewShared: prev?.reviewShared,
             snap: { ...prev?.snap, ...snap },
           };
           let order = s.order;
@@ -185,6 +192,22 @@ export const useStore = create<LibraryState>()(
           const e = s.entries[key];
           if (!e || e.status !== 'seen') return {};
           return { entries: { ...s.entries, [key]: { ...e, rewatch: on ? true : undefined, updatedAt: Date.now() } } };
+        }),
+
+      setReview: (key, text, shared) =>
+        set((s) => {
+          const e = s.entries[key];
+          if (!e) return {};
+          const review = text.trim().slice(0, REVIEW_MAX);
+          const now = Date.now();
+          return {
+            entries: {
+              ...s.entries,
+              [key]: review
+                ? { ...e, review, reviewAt: e.review === review ? e.reviewAt ?? now : now, reviewShared: shared || undefined, updatedAt: now }
+                : { ...e, review: undefined, reviewAt: undefined, reviewShared: undefined, updatedAt: now },
+            },
+          };
         }),
 
       setDesire: (key, level) =>

@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { infoOf, useSheets } from '../lib/sheets';
-import { useStore } from '../lib/store';
+import { REVIEW_MAX, useStore } from '../lib/store';
 import { keyOf } from '../lib/types';
 import { mark, toggleRewatch, unmark } from '../lib/actions';
 import { fmtRating, ratingLabel } from '../lib/rating';
 import { Stars } from './Stars';
 import { Poster } from './Poster';
 import { Icon } from './Icon';
-import { Spinner } from './Misc';
+import { Spinner, Switch } from './Misc';
 import { UserAvatar } from './Bars';
 import { loadDirectory, sendRecommendation, socialError, useSocial } from '../lib/social';
 import { useAsync } from '../lib/useAsync';
@@ -43,7 +43,7 @@ function afterSheetClosed(fn: () => void) {
 }
 
 export function Sheets() {
-  const { kind, target, close, openRate, openWith, openShare } = useSheets();
+  const { kind, target, close, openRate, openWith, openShare, openReview } = useSheets();
   const socialReady = useSocial((s) => s.ready);
   const navigate = useNavigate();
   const info = target ? infoOf(target) : null;
@@ -72,15 +72,16 @@ export function Sheets() {
     if (!legend && !stars) setStars(5);
     setLegend(!legend);
   };
-  const save = () => {
+  const save = (thenReview = false) => {
     mark(target, 'seen', stars || undefined, { legend, classic, rewatch });
-    close();
+    if (thenReview) openReview(target);
+    else close();
   };
 
   return (
     <>
       <div className="scrim" onClick={close} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={kind === 'rate' ? 'Calificar' : kind === 'with' ? 'Con quién verla' : kind === 'share' ? 'Recomendar' : 'Opciones'}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={kind === 'rate' ? 'Calificar' : kind === 'with' ? 'Con quién verla' : kind === 'share' ? 'Recomendar' : kind === 'review' ? 'Tu reflexión' : 'Opciones'}>
         <div className="grab" />
         <div className="row" style={{ gap: 12, alignItems: 'center' }}>
           <Poster path={info.poster} title={info.title} size="w92" className="sheet-poster" />
@@ -94,6 +95,8 @@ export function Sheets() {
           <WithPanel k={key} onDone={close} />
         ) : kind === 'share' ? (
           <SharePanel info={info} onDone={close} />
+        ) : kind === 'review' ? (
+          <ReviewPanel k={key} onDone={close} />
         ) : kind === 'rate' ? (
           <>
             <p className="center muted" style={{ marginTop: 18 }}>
@@ -137,8 +140,11 @@ export function Sheets() {
               </span>
               <span className="check">{rewatch && <Icon name="check" size={14} stroke={3} />}</span>
             </button>
-            <button className="btn primary block" style={{ marginTop: 14 }} onClick={save} disabled={!stars && !legend && !classic && !rewatch}>
+            <button className="btn primary block" style={{ marginTop: 14 }} onClick={() => save()} disabled={!stars && !legend && !classic && !rewatch}>
               Guardar
+            </button>
+            <button className="btn block outline" style={{ marginTop: 8 }} onClick={() => save(true)}>
+              <Icon name="pen" size={17} /> {entry?.review ? 'Guardar y ver mi reflexión' : 'Guardar y escribir una reflexión'}
             </button>
             <div className="opts">
               <button
@@ -190,6 +196,11 @@ export function Sheets() {
                 }}
               >
                 <Icon name="repeat" /> {entry.rewatch ? 'Ya no quiero volver a verla' : 'Para volver a ver'}
+              </button>
+            )}
+            {entry?.status === 'seen' && (
+              <button className="opt" onClick={() => openReview(target)}>
+                <Icon name="pen" /> {entry.review ? 'Ver o editar mi reflexión' : 'Escribir una reflexión'}
               </button>
             )}
             {entry?.status === 'seen' && entry.rewatch && (
@@ -430,6 +441,73 @@ function SharePanel({ info, onDone }: { info: ReturnType<typeof infoOf>; onDone:
       <button className="btn primary block" style={{ marginTop: 14 }} disabled={!to.length || busy} onClick={send}>
         {busy ? 'Enviando…' : to.length > 1 ? `Recomendar a ${to.length} personas` : 'Recomendar'}
       </button>
+    </>
+  );
+}
+
+/** La reflexión personal sobre una película vista: privada, o visible en el perfil de Comunidad. */
+function ReviewPanel({ k, onDone }: { k: string; onDone: () => void }) {
+  const entry = useStore((s) => s.entries[k]);
+  const setReview = useStore((s) => s.setReview);
+  const hasProfile = useSocial((s) => !!s.me);
+  const [text, setText] = useState(entry?.review ?? '');
+  const [shared, setShared] = useState(!!entry?.reviewShared);
+  const changed = text.trim() !== (entry?.review ?? '') || shared !== !!entry?.reviewShared;
+
+  if (!entry) return null;
+  const save = () => {
+    setReview(k, text, shared);
+    toast(text.trim() ? 'Reflexión guardada.' : 'Reflexión borrada.');
+    onDone();
+  };
+
+  return (
+    <>
+      <p className="muted" style={{ marginTop: 16 }}>
+        Tu reflexión
+        {entry.reviewAt && (
+          <span className="faint small"> · {new Date(entry.reviewAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+        )}
+      </p>
+      <textarea
+        className="input"
+        style={{ height: 'auto', padding: '12px 14px', marginTop: 8, resize: 'vertical', lineHeight: 1.5 }}
+        rows={7}
+        maxLength={REVIEW_MAX}
+        autoFocus
+        placeholder="¿Qué te dejó? Lo que te gustó, lo que no, una escena, con quién la viste…"
+        aria-label="Tu reflexión"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="faint small" style={{ textAlign: 'right' }}>
+        {text.length} / {REVIEW_MAX}
+      </div>
+      {hasProfile && (
+        <label className="setting" style={{ cursor: 'pointer' }}>
+          <div className="grow">
+            <div style={{ fontWeight: 650 }}>Mostrar en mi perfil de Comunidad</div>
+            <div className="muted small">Si la apagás, solo la ves vos.</div>
+          </div>
+          <Switch on={shared} onChange={setShared} label="Mostrar en mi perfil de Comunidad" />
+        </label>
+      )}
+      <button className="btn primary block" style={{ marginTop: 14 }} onClick={save} disabled={!changed}>
+        Guardar
+      </button>
+      {entry.review && (
+        <button
+          className="btn block outline danger"
+          style={{ marginTop: 8 }}
+          onClick={() => {
+            setReview(k, '', false);
+            toast('Reflexión borrada.');
+            onDone();
+          }}
+        >
+          <Icon name="trash" size={17} /> Borrar reflexión
+        </button>
+      )}
     </>
   );
 }

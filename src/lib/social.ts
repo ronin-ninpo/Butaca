@@ -14,6 +14,8 @@ export interface ProfileItem {
   l: boolean; // leyenda
   c: boolean; // clásico
   s: number | null; // cuándo la vio
+  n?: string; // reflexión (solo si la eligió mostrar)
+  na?: number; // cuándo la escribió
 }
 
 export interface ProfileStats {
@@ -61,6 +63,7 @@ export interface InboxItem {
 
 export const PROFILE_COLORS = ['#ff5b4f', '#ffb53d', '#4fd394', '#52b8ff', '#c4a1ff', '#ff7ab6'];
 const MAX_SEEN = 1500;
+const REVIEWS_BUDGET = 400_000; // caracteres de reflexiones compartidas por perfil
 
 interface SocialState {
   /** hay sesión iniciada y sincronizada */
@@ -90,6 +93,19 @@ const handling = new Set<string>();
 
 function toItem(e: Entry): ProfileItem {
   return { k: e.key, t: e.snap.title, y: e.snap.year ?? null, p: e.snap.poster ?? null, r: e.rating ?? null, l: !!e.legend, c: !!e.classic, s: e.seenAt ?? null };
+}
+
+/** Agrega las reflexiones compartidas, cuidando que el documento no supere el tamaño que permite Firestore. */
+function withReviews(list: Entry[]): ProfileItem[] {
+  let budget = REVIEWS_BUDGET;
+  const shared = new Set(
+    list
+      .filter((e) => e.review && e.reviewShared)
+      .sort((a, b) => (b.reviewAt ?? 0) - (a.reviewAt ?? 0))
+      .filter((e) => (budget -= e.review!.length) >= 0)
+      .map((e) => e.key),
+  );
+  return list.map((e) => (shared.has(e.key) ? { ...toItem(e), n: e.review, na: e.reviewAt ?? Date.now() } : toItem(e)));
 }
 
 export function statsOf(items: ProfileItem[]): ProfileStats {
@@ -167,6 +183,7 @@ function stop() {
   unsubs.forEach((u) => u());
   unsubs = [];
   clearTimeout(publishTimer);
+  publishPending = false;
   session = null;
   handling.clear();
   useSocial.setState({ ready: false, uid: null, me: undefined, inbox: [], error: null });
@@ -177,9 +194,25 @@ function need(): Session {
   return session;
 }
 
-function schedulePublish(ms = 4000) {
+let publishPending = false;
+
+function schedulePublish(ms = 2500) {
   clearTimeout(publishTimer);
-  publishTimer = setTimeout(() => publish().catch((e) => useSocial.setState({ error: socialError(e) })), ms);
+  publishPending = true;
+  publishTimer = setTimeout(publishNow, ms);
+}
+
+function publishNow() {
+  clearTimeout(publishTimer);
+  publishPending = false;
+  publish().catch((e) => useSocial.setState({ error: socialError(e) }));
+}
+
+// Si salís de la app con cambios sin publicar (en el celular los temporizadores se frenan), se publican ya.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && publishPending && session) publishNow();
+  });
 }
 
 /** Sube el perfil: el resumen siempre; el detalle solo si es visible (si no, se borra). */
@@ -189,7 +222,7 @@ async function publish() {
   const { db, f } = session.fb;
   const uid = session.uid;
   const s = useStore.getState();
-  const seen = me.public ? favoritesOrder(s.entries, s.order).slice(0, MAX_SEEN).map(toItem) : [];
+  const seen = me.public ? withReviews(favoritesOrder(s.entries, s.order).slice(0, MAX_SEEN)) : [];
   const now = Date.now();
   const summary: ProfileSummary = { ...me, uid, updatedAt: now, stats: statsOf(seen), top: seen.slice(0, 8) };
   const batch = f.writeBatch(db);
@@ -219,6 +252,7 @@ export async function saveMyProfile(p: { name: string; bio: string; color: strin
     },
   });
   clearTimeout(publishTimer);
+  publishPending = false;
   await publish();
 }
 

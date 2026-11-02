@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { affinity, loadProfile, socialError, useSocial, type ProfileItem } from '../lib/social';
 import { useAsync } from '../lib/useAsync';
@@ -33,6 +33,37 @@ function ItemCard({ it, rank }: { it: ProfileItem; rank?: number }) {
   );
 }
 
+/** Una reflexión de otra persona. Si todavía no viste la película, queda tapada por si tiene spoilers. */
+function ReviewItem({ it, seenByMe }: { it: ProfileItem; seenByMe: boolean }) {
+  const [shown, setShown] = useState(seenByMe);
+  const [type, id] = it.k.split(':');
+  return (
+    <div className="review-item">
+      <Link to={`/t/${type}/${id}`}>
+        <Poster path={it.p} title={it.t} size="w154" />
+      </Link>
+      <div className="grow" style={{ minWidth: 0 }}>
+        <Link to={`/t/${type}/${id}`} className="t" style={{ fontWeight: 700 }}>
+          {it.t}
+        </Link>
+        <div className="row small muted" style={{ gap: 8, marginTop: 2 }}>
+          {it.l && <Icon name="crown" size={14} fill className="legend-tag" />}
+          {it.r ? <Stars value={it.r} size={13} /> : null}
+          {it.na && <span>{new Date(it.na).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+        </div>
+        <p className={`review-text ${shown ? '' : 'spoiler'}`} style={{ marginTop: 6, fontSize: 14.5, lineHeight: 1.5, whiteSpace: 'pre-line' }} aria-hidden={!shown}>
+          {it.n}
+        </p>
+        {!shown && (
+          <button className="link small" onClick={() => setShown(true)}>
+            Todavía no la viste: mostrar (puede tener spoilers)
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function UserProfile() {
   const { uid = '' } = useParams();
   const ready = useSocial((s) => s.ready);
@@ -47,6 +78,7 @@ export function UserProfile() {
   const ranking = lib?.seen.filter((i) => !i.l && i.r).slice(0, 20) ?? [];
   const recent = lib ? [...lib.seen].filter((i) => i.s).sort((a, b) => (b.s ?? 0) - (a.s ?? 0)).slice(0, 12) : [];
   const classics = lib?.seen.filter((i) => i.c) ?? [];
+  const reviews = lib ? lib.seen.filter((i) => i.n).sort((a, b) => (b.na ?? 0) - (a.na ?? 0)) : [];
 
   if (!ready)
     return (
@@ -151,6 +183,16 @@ export function UserProfile() {
                     <ItemCard key={it.k} it={it} />
                   ))}
                 </div>
+              </section>
+            )}
+            {reviews.length > 0 && (
+              <section className="section">
+                <h2 className="section-title">
+                  <Icon name="pen" size={18} /> {isMe ? 'Tus reflexiones visibles' : 'Sus reflexiones'}
+                </h2>
+                {reviews.map((it) => (
+                  <ReviewItem key={it.k} it={it} seenByMe={isMe || entries[it.k]?.status === 'seen'} />
+                ))}
               </section>
             )}
             {ranking.length > 0 && (

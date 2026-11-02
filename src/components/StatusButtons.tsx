@@ -13,6 +13,7 @@ export function StatusButtons({ target }: { target: Target }) {
   const e = useStore((s) => s.entries[k]);
   const openRate = useSheets((s) => s.openRate);
   const openWith = useSheets((s) => s.openWith);
+  const openReview = useSheets((s) => s.openReview);
   const st = e?.status;
   return (
     <>
@@ -91,6 +92,23 @@ export function StatusButtons({ target }: { target: Target }) {
             </button>
           )}
         </div>
+      )}
+      {st === 'seen' && (
+        <button className="card review-card" style={{ marginTop: 10, width: '100%', textAlign: 'left' }} onClick={() => openReview(target)}>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="row small" style={{ gap: 6, fontWeight: 700 }}>
+              <Icon name="pen" size={16} /> {e?.review ? 'Tu reflexión' : 'Escribir una reflexión'}
+            </span>
+            {e?.review && <span className="faint small">{e.reviewShared ? 'Visible en tu perfil' : 'Privada'}</span>}
+          </div>
+          {e?.review ? (
+            <p className="review-text clamp-5">{e.review}</p>
+          ) : (
+            <p className="muted small" style={{ marginTop: 4 }}>
+              ¿Qué te dejó? Guardala para acordarte (es privada, salvo que elijas mostrarla).
+            </p>
+          )}
+        </button>
       )}
     </>
   );

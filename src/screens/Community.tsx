@@ -46,7 +46,8 @@ export function Community() {
           <Icon name="users" size={18} />
           <div>Creá tu perfil para ver a otras personas y recomendarles películas. Vos elegís qué nombre mostrar y si tu perfil es visible.</div>
         </div>
-        <ProfileForm onSaved={() => navigate('/comunidad', { replace: true })} />
+        {/* Al existir el perfil, esta pantalla pasa sola a las pestañas (no navegamos: la confirmación puede llegar cuando ya estás en otra pantalla). */}
+        <ProfileForm onSaved={() => toast('¡Listo! Ya tenés tu perfil.')} />
       </>
     );
   } else {

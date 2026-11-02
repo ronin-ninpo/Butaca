@@ -54,6 +54,11 @@ export interface Entry {
   desire?: 1 | 2 | 3;
   /** Vista, pero la quiero volver a ver (sigue en Vistas) */
   rewatch?: boolean;
+  /** Reflexión personal sobre una película vista */
+  review?: string;
+  reviewAt?: number;
+  /** Mostrar la reflexión en el perfil de Comunidad */
+  reviewShared?: boolean;
   /** Con quién la querés ver (nombres de etiquetas) */
   withWho?: string[];
   addedAt: number;

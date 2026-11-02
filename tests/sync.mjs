@@ -288,6 +288,31 @@ try {
   await pc.page.waitForSelector('.segmented >> text=Personas');
   ok('Nico crea su perfil');
 
+  async function writeReview(dev, id, text, share) {
+    await dev.page.goto(BASE + `#/t/movie/${id}`);
+    await dev.page.click('.review-card');
+    await dev.page.fill('.sheet textarea[aria-label="Tu reflexión"]', text);
+    if (share) await dev.page.click('.sheet button[aria-label="Mostrar en mi perfil de Comunidad"]');
+    await dev.page.click('.sheet button:has-text("Guardar")');
+    await dev.page.waitForSelector('.review-card .review-text');
+  }
+  await writeReview(pc, 238, 'La mejor de la historia. La escena del bautismo me sigue volando la cabeza.', true);
+  await writeReview(pc, 105, 'Me hizo querer un DeLorean.', true);
+  await writeReview(pc, 603, 'Esta es privada.', false);
+  ok('Nico escribe dos reflexiones visibles y una privada');
+  // Esperamos a que el perfil público de Nico tenga las 2 reflexiones (se publica a los pocos segundos).
+  {
+    const nicoU = await pc.page.evaluate(() => JSON.parse(localStorage.getItem('butaca.sync.meta')).uid);
+    const url = `http://${EMU}:8080/v1/projects/${PROJECT}/databases/(default)/documents/profiles/${nicoU}/data/library`;
+    let n = 0;
+    for (let i = 0; i < 40 && n < 2; i++) {
+      await pc.page.waitForTimeout(500);
+      n = (JSON.stringify(await (await fetch(url, { headers: { Authorization: 'Bearer owner' } })).json()).match(/"n"/g) || []).length;
+    }
+    assert(n === 2, 'el perfil público se actualiza solo con las reflexiones visibles');
+  }
+  await waitFor(cel, () => JSON.parse(localStorage.getItem('butaca-library')).state.entries['movie:238']?.review?.includes('bautismo'), null, 'la reflexión llega al celular de Nico');
+
   bel = await device('Belén');
   await seed(bel, {
     entries: {
@@ -320,6 +345,14 @@ try {
   const affText = await bel.page.textContent('.card:has-text("en común")');
   assert(/Vieron 3 en común/.test(affText) && /Afinidad 78%/.test(affText), `perfil de Nico con leyendas y afinidad (${affText.trim()})`);
   assert(await bel.page.isVisible('.mcard:has-text("El padrino")'), 'se ven sus películas con sus estrellas');
+  const items = bel.page.locator('.review-item');
+  assert((await items.count()) === 2 && !(await bel.page.isVisible('text=Esta es privada')), 'en «Sus reflexiones» están las 2 visibles y no la privada');
+  const padrino = items.filter({ hasText: 'El padrino' });
+  const volver = items.filter({ hasText: 'Volver al futuro' });
+  assert((await padrino.locator('.spoiler').count()) === 0, 'la de una película que Belén vio se lee directo');
+  assert((await volver.locator('.spoiler').count()) === 1, 'la de una que no vio queda tapada por spoilers');
+  await volver.locator('button:has-text("mostrar")').click();
+  assert((await volver.locator('.spoiler').count()) === 0, 'y se puede destapar');
   await shot(bel, 'perfil-de-nico');
 
   await bel.page.goto(BASE + '#/t/movie/597');

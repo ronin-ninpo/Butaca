@@ -393,3 +393,8 @@ input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; a
 .note { margin-top: 4px; font-size: 13.5px; color: #e6e0ec; font-style: italic; }
 .unread-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
 .pcard-rating { margin-top: 3px; }
+.review-card .review-text { margin-top: 6px; font-size: 14.5px; line-height: 1.5; color: #e6e0ec; white-space: pre-line; }
+.review-mark { color: var(--muted); }
+.spoiler { filter: blur(6px); user-select: none; }
+.review-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.review-item .poster { width: 56px; flex: none; border-radius: 8px; }

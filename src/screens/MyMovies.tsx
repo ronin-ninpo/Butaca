@@ -122,6 +122,7 @@ function Seen() {
   const [typeF, setTypeF] = useState<TypeF>('all');
   const [genreF, setGenreF] = useState<number | null>(null);
   const [classicF, setClassicF] = useState(false);
+  const [reviewF, setReviewF] = useState(false);
   const [rewatchF, setRewatchF] = useState(false);
   const [withF, setWithF] = useState<string | null>(null);
 
@@ -132,9 +133,10 @@ function Seen() {
       (typeF === 'all' || e.snap.type === typeF) &&
       (genreF === null || e.snap.genreIds.includes(genreF)) &&
       (!classicF || e.classic) &&
+      (!reviewF || !!e.review) &&
       (!rewatchF || (e.rewatch && matchesWith(e, withF))),
   );
-  const filtering = typeF !== 'all' || genreF !== null || classicF || rewatchF;
+  const filtering = typeF !== 'all' || genreF !== null || classicF || rewatchF || reviewF;
   const rewatchItems = favs.filter((e) => e.rewatch);
   const sorted =
     sort === 'fav'
@@ -207,6 +209,7 @@ function Seen() {
         toggles={[
           { id: 'rewatch', label: 'Para volver a ver', icon: 'repeat', count: rewatchItems.length, on: rewatchF, onToggle: () => (setRewatchF(!rewatchF), setWithF(null)) },
           { id: 'classic', label: 'Clásicos', icon: 'award', count: favs.filter((e) => e.classic).length, on: classicF, onToggle: () => setClassicF(!classicF) },
+          { id: 'review', label: 'Con reflexión', icon: 'pen', count: favs.filter((e) => e.review).length, on: reviewF, onToggle: () => setReviewF(!reviewF) },
         ]}
       />
       {rewatchF && <CompanionFilter items={rewatchItems} value={withF} onChange={setWithF} label="Filtrar por con quién volver a verla" />}
@@ -323,6 +326,7 @@ function SeenRow({ e, rankNo, handle, rowRef, style, dragging }: { e: Entry; ran
                   <Icon name="award" size={15} /> Clásico
                 </span>
               )}
+              {e.review && <Icon name="pen" size={15} className="review-mark" />}
             </span>
           ) : (
             <span className="link small">Calificar</span>

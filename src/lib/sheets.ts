@@ -5,12 +5,13 @@ import type { MediaSummary, Snapshot } from './types';
 export type Target = MediaSummary | Details;
 
 interface SheetState {
-  kind: 'rate' | 'actions' | 'with' | 'share' | null;
+  kind: 'rate' | 'actions' | 'with' | 'share' | 'review' | null;
   target: Target | null;
   openRate: (t: Target) => void;
   openActions: (t: Target) => void;
   openWith: (t: Target) => void;
   openShare: (t: Target) => void;
+  openReview: (t: Target) => void;
   close: () => void;
 }
 
@@ -21,6 +22,7 @@ export const useSheets = create<SheetState>((set) => ({
   openActions: (target) => set({ kind: 'actions', target }),
   openWith: (target) => set({ kind: 'with', target }),
   openShare: (target) => set({ kind: 'share', target }),
+  openReview: (target) => set({ kind: 'review', target }),
   close: () => set({ kind: null, target: null }),
 }));
 
