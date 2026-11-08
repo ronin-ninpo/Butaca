@@ -358,8 +358,21 @@ function readPlatforms(): string[] {
 }
 
 /** Fila «En»: plataformas donde están tus películas (incluidas en la suscripción), con su cantidad. Se pueden elegir varias. */
-function PlatformFilter({ counts, value, onChange, done, total }: { counts: [string, number][]; value: string[]; onChange: (v: string[]) => void; done: number; total: number }) {
-  if (!counts.length && done >= total && !value.length) return null;
+function PlatformFilter({
+  counts,
+  value,
+  onChange,
+  done,
+  errors,
+  total,
+}: {
+  counts: [string, number][];
+  value: string[];
+  onChange: (v: string[]) => void;
+  done: number;
+  errors: number;
+  total: number;
+}) {
   const shown = [...counts.map(([k]) => k), ...value.filter((k) => !counts.some(([c]) => c === k))];
   return (
     <div className="chips" style={{ marginTop: 10 }} aria-label="Filtrar por dónde verla">
@@ -381,11 +394,17 @@ function PlatformFilter({ counts, value, onChange, done, total }: { counts: [str
           </button>
         );
       })}
-      {done < total && (
+      {done < total ? (
         <span className="chip-label faint" role="status">
           Buscando dónde ver… {done}/{total}
         </span>
-      )}
+      ) : errors === total ? (
+        <span className="chip-label err-msg">No se pudo consultar dónde verlas. Revisá tu conexión y la clave de TMDB.</span>
+      ) : !counts.length ? (
+        <span className="chip-label faint">Ninguna está incluida en plataformas de tu país.</span>
+      ) : errors > 0 ? (
+        <span className="chip-label faint">{errors} sin datos (se reintenta al volver)</span>
+      ) : null}
     </div>
   );
 }
@@ -467,7 +486,7 @@ function Want() {
           <option value="title">Título (A-Z)</option>
         </select>
       </div>
-      <PlatformFilter counts={avail.counts} value={platF} onChange={choosePlatforms} done={avail.done} total={avail.total} />
+      <PlatformFilter counts={avail.counts} value={platF} onChange={choosePlatforms} done={avail.done} errors={avail.errors} total={avail.total} />
       <CompanionFilter items={all} value={withF} onChange={setWithF} label="Filtrar por con quién verla" />
       <Filters typeF={typeF} setTypeF={setTypeF} genreF={genreF} setGenreF={setGenreF} list={all} />
       {list.length === 0 && <p className="muted small center" style={{ marginTop: 24 }}>No hay películas con esos filtros.</p>}

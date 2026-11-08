@@ -28,6 +28,18 @@ const REGIONS: [string, string][] = [
   ['VE', 'Venezuela'],
 ];
 
+/** Pide al navegador la última versión publicada y recarga la app para usarla. */
+async function checkUpdate() {
+  toast('Buscando la última versión…');
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update();
+  } catch {
+    /* sin service worker (por ejemplo, en desarrollo): igual recargamos */
+  }
+  setTimeout(() => location.reload(), 1500);
+}
+
 export function Settings() {
   const settings = useStore((s) => s.settings);
   const update = useStore((s) => s.updateSettings);
@@ -209,13 +221,28 @@ export function Settings() {
         </section>
 
         <section className="section">
+          <h2 className="section-title">Actualizaciones</h2>
+          <div className="card row" style={{ justifyContent: 'space-between' }}>
+            <div className="small">
+              <div>
+                Versión del <b>{__APP_VERSION__}</b>
+              </div>
+              <div className="muted">La app se actualiza sola al abrirla. Si no ves un cambio nuevo, buscá la actualización.</div>
+            </div>
+            <button className="btn small" onClick={checkUpdate}>
+              <Icon name="refresh" size={16} /> Buscar actualización
+            </button>
+          </div>
+        </section>
+
+        <section className="section">
           <h2 className="section-title">Acerca de</h2>
           <p className="muted small">
             Datos de películas, series y personas: <b>TMDB</b>. Esta app usa la API de TMDB pero no está avalada ni certificada por TMDB. Disponibilidad en plataformas:{' '}
             <b>JustWatch</b> (vía TMDB). Nota de IMDb: <b>OMDb API</b>.
           </p>
           <p className="faint small" style={{ marginTop: 8 }}>
-            Butaca 1.0
+            Versión del {__APP_VERSION__}
           </p>
         </section>
       </div>

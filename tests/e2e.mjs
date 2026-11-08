@@ -482,6 +482,7 @@ try {
   console.log('Ajustes y respaldo');
   await page.goto(BASE + '#/ajustes');
   await page.waitForSelector('text=Respaldo');
+  assert(/Versión del \d+ de \w+/.test(await page.textContent('body')) && (await page.isVisible('button:has-text("Buscar actualización")')), 'Ajustes muestra la versión y el botón «Buscar actualización»');
   await shot('ajustes', true);
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("Exportar")')]);
   const backup = JSON.parse(readFileSync(await dl.path(), 'utf8'));
@@ -501,6 +502,9 @@ try {
   await p2.evaluate(() => localStorage.setItem('butaca-library', JSON.stringify({ state: { settings: { tmdbKey: 'test-key' } }, version: 1 })));
   await p2.goto(BASE + '#/ajustes');
   await p2.reload();
+  // Con la clave ya cargada, ir a Ajustes (la primera carga pudo haber terminado en la bienvenida).
+  await p2.goto(BASE + '#/ajustes');
+  await p2.waitForSelector('text=Respaldo');
   await p2.setInputFiles('input[type=file]', await dl.path());
   await p2.waitForTimeout(400);
   const imported = await p2.evaluate(() => JSON.parse(localStorage.getItem('butaca-library')).state);

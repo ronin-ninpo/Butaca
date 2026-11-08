@@ -14,6 +14,7 @@ export interface Platform {
 const queue = limiter(6);
 /** Respuestas ya resueltas en esta sesión (además de la caché de TMDB en IndexedDB). */
 const known = new Map<string, string[]>();
+const failed = new Set<string>();
 const platforms = new Map<string, Platform>();
 
 const platformName = (name: string) => name.replace(/\s+(basic|standard|premium)?\s*with ads$/i, '').trim();
@@ -59,9 +60,15 @@ export function useAvailability(items: { key: string; type: MediaType; id: numbe
       if (known.has(k)) continue;
       queue(() => (alive ? fetchPlatforms(it.type, it.id, getSettings().region) : Promise.resolve(null)))
         .then((keys) => {
-          if (keys) known.set(k, keys);
+          if (keys) {
+            known.set(k, keys);
+            failed.delete(k);
+          }
         })
-        .catch(() => known.set(k, []))
+        .catch(() => {
+          // Se reintenta la próxima vez que se abra la lista.
+          failed.add(k);
+        })
         .finally(refresh);
     }
     return () => {
@@ -72,13 +79,15 @@ export function useAvailability(items: { key: string; type: MediaType; id: numbe
   }, [ids, region]);
 
   const byKey = new Map<string, string[]>();
+  let errors = 0;
   for (const it of items) {
     const v = known.get(`${region}|${it.key}`);
     if (v) byKey.set(it.key, v);
+    else if (failed.has(`${region}|${it.key}`)) errors++;
   }
   const tally = new Map<string, number>();
   for (const keys of byKey.values()) for (const p of keys) tally.set(p, (tally.get(p) ?? 0) + 1);
   const counts = [...tally.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
-  return { byKey, counts, done: byKey.size, total: items.length };
+  return { byKey, counts, done: byKey.size + errors, errors, total: items.length };
 }
