@@ -21,6 +21,7 @@ npm run test:sync  # cuenta, sincronización y Comunidad contra los emuladores d
 - React 18 + TypeScript + Vite, `vite-plugin-pwa`, rutas con `createHashRouter` (todo cuelga de `#/`, por eso funciona en la subcarpeta de GitHub Pages). Estado con zustand.
 - `src/lib/store.ts`: listas del usuario (persistidas en `localStorage`, clave `butaca-library`). Cada título es un `Entry` con `status` (`want` | `seen` | `skip` | `later`), estrellas de 0,5 a 5, marcas `legend`/`classic`/`rewatch`, ganas 1–3 (`desire`), etiquetas de con quién (`withWho`), reflexión (`review`, `reviewShared`) y `updatedAt` para sincronizar.
 - `src/lib/tmdb.ts` y `src/lib/omdb.ts`: datos de películas (cada usuario carga sus propias claves en Ajustes; no hay claves en el código). Caché en IndexedDB (`src/lib/cache.ts`).
+- `src/lib/availability.ts`: en qué plataformas (incluidas en la suscripción) está cada título de «Quiero ver», para el filtro «En» (datos de JustWatch vía TMDB, guardados un día).
 - `src/lib/recommend.ts`: recomendaciones de «Para vos» a partir de calificaciones, leyendas, favoritos y géneros.
 - `src/lib/sync.ts` + `src/lib/syncMerge.ts`: cuenta con email y contraseña y sincronización con Firebase (Auth + Firestore). Firebase se carga recién cuando hay sesión.
 - `src/lib/social.ts`: Comunidad (perfiles públicos opcionales, personas, recomendaciones entre usuarios, reflexiones compartidas).

@@ -294,7 +294,30 @@ try {
 
   await page.click('.segmented >> text=Quiero ver');
   await page.waitForSelector('.mrow');
+
+  console.log('Dónde verla (plataformas)');
+  const PROV = ['Netflix', 'Amazon Prime Video', 'Disney Plus', 'Max', 'Apple TV+', 'Paramount Plus', 'Claro video', 'Google Play Movies'];
+  const platsOf = (id) => (id % 5 === 0 ? [] : [...new Set([...PROV.slice(id % 4, (id % 4) + 2), ...(id % 2 === 0 ? ['Netflix'] : [])])]);
+  s = await lib();
+  const wantIds = Object.values(s.entries).filter((e) => e.status === 'want').map((e) => e.snap.id);
+  const tally = {};
+  for (const id of wantIds) for (const p of platsOf(id)) tally[p] = (tally[p] ?? 0) + 1;
+  const [topPlat, topCount] = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+  const platRow = page.locator('[aria-label="Filtrar por dónde verla"]');
+  await page.waitForSelector('[aria-label="Filtrar por dónde verla"] .chip img');
+  await page.waitForFunction(() => !document.querySelector('[aria-label="Filtrar por dónde verla"] [role=status]'));
+  const chipNames = await platRow.locator('.chip').allTextContents();
+  assert(!chipNames.some((t) => /with ads/i.test(t)), `las versiones «con anuncios» no aparecen aparte (${chipNames.join(' | ')})`);
+  if (tally.Netflix) assert(chipNames.filter((t) => t.startsWith('Netflix')).length === 1 && chipNames.some((t) => t.startsWith('Netflix') && t.includes(String(tally.Netflix))), `«Netflix» una sola vez, sumando la versión con anuncios (${tally.Netflix})`);
+  assert(!chipNames.some((t) => t.includes('Google Play')), 'no cuenta alquiler ni compra, solo lo incluido en la suscripción');
+  assert(chipNames.some((t) => t.startsWith(topPlat) && t.includes(String(topCount))), `«${topPlat}» con ${topCount} películas`);
   await shot('quiero-ver');
+  await platRow.locator('.chip', { hasText: topPlat }).click();
+  assert((await page.locator('.mrow').count()) === topCount, `filtrar por ${topPlat} deja ${topCount}`);
+  assert((await page.locator('.mrow').first().locator(`.plat-logo[alt="${topPlat}"]`).count()) === 1, 'cada película muestra el logo de dónde verla');
+  await shot('quiero-ver-plataforma');
+  await platRow.locator('.chip', { hasText: 'Todas' }).click();
+  assert((await page.locator('.mrow').count()) === wantIds.length, '«Todas» vuelve a mostrar la lista completa');
 
   console.log('Quiero ver');
   const wantRows = page.locator('.mrow');

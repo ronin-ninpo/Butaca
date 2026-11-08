@@ -16,6 +16,8 @@ import { Stars } from '../components/Stars';
 import { Empty, Segmented } from '../components/Misc';
 import { Icon } from '../components/Icon';
 import { Desire } from '../components/Desire';
+import { getPlatform, useAvailability } from '../lib/availability';
+import { img } from '../lib/tmdb';
 import { GROUP_ORDER, favoritesOrder, fmtAvg, fmtRating, groupOf } from '../lib/rating';
 
 type Tab = 'vistas' | 'quiero' | 'descartadas';
@@ -345,6 +347,48 @@ function SeenRow({ e, rankNo, handle, rowRef, style, dragging }: { e: Entry; ran
 }
 
 const NO_ONE = '__nadie__';
+const PLAT_PREF = 'butaca.want.platforms';
+
+function readPlatforms(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(PLAT_PREF) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+/** Fila «En»: plataformas donde están tus películas (incluidas en la suscripción), con su cantidad. Se pueden elegir varias. */
+function PlatformFilter({ counts, value, onChange, done, total }: { counts: [string, number][]; value: string[]; onChange: (v: string[]) => void; done: number; total: number }) {
+  if (!counts.length && done >= total && !value.length) return null;
+  const shown = [...counts.map(([k]) => k), ...value.filter((k) => !counts.some(([c]) => c === k))];
+  return (
+    <div className="chips" style={{ marginTop: 10 }} aria-label="Filtrar por dónde verla">
+      <span className="chip-label">
+        <Icon name="tv" size={16} /> En
+      </span>
+      <button className={`chip ${value.length === 0 ? 'on' : ''}`} onClick={() => onChange([])}>
+        Todas
+      </button>
+      {shown.map((k) => {
+        const p = getPlatform(k);
+        if (!p) return null;
+        const on = value.includes(k);
+        const n = counts.find(([c]) => c === k)?.[1] ?? 0;
+        return (
+          <button key={k} className={`chip ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => onChange(on ? value.filter((x) => x !== k) : [...value, k])}>
+            <img src={img(p.logo, 'w92')} alt="" />
+            {p.name} <span className="faint">{n}</span>
+          </button>
+        );
+      })}
+      {done < total && (
+        <span className="chip-label faint" role="status">
+          Buscando dónde ver… {done}/{total}
+        </span>
+      )}
+    </div>
+  );
+}
 
 const matchesWith = (e: Entry, withF: string | null) => withF === null || (withF === NO_ONE ? !e.withWho?.length : !!e.withWho?.includes(withF));
 
@@ -381,10 +425,21 @@ function Want() {
   const [sort, setSort] = useState<'desire' | 'recent' | 'imdb' | 'year' | 'title'>('desire');
   const [typeF, setTypeF] = useState<TypeF>('all');
   const [genreF, setGenreF] = useState<number | null>(null);
+  const [platF, setPlatF] = useState<string[]>(readPlatforms);
   const all = Object.values(entries).filter((e) => e.status === 'want');
+  const avail = useAvailability(all.map((e) => ({ key: e.key, type: e.snap.type, id: e.snap.id })));
+  const choosePlatforms = (v: string[]) => {
+    setPlatF(v);
+    try {
+      localStorage.setItem(PLAT_PREF, JSON.stringify(v));
+    } catch {
+      /* sin almacenamiento: queda solo por esta vez */
+    }
+  };
   const list = all
     .filter((e) => (typeF === 'all' || e.snap.type === typeF) && (genreF === null || e.snap.genreIds.includes(genreF)))
     .filter((e) => matchesWith(e, withF))
+    .filter((e) => !platF.length || (avail.byKey.get(e.key) ?? []).some((p) => platF.includes(p)))
     .sort((a, b) =>
       sort === 'desire'
         ? (b.desire ?? 0) - (a.desire ?? 0) || b.addedAt - a.addedAt
@@ -412,6 +467,7 @@ function Want() {
           <option value="title">Título (A-Z)</option>
         </select>
       </div>
+      <PlatformFilter counts={avail.counts} value={platF} onChange={choosePlatforms} done={avail.done} total={avail.total} />
       <CompanionFilter items={all} value={withF} onChange={setWithF} label="Filtrar por con quién verla" />
       <Filters typeF={typeF} setTypeF={setTypeF} genreF={genreF} setGenreF={setGenreF} list={all} />
       {list.length === 0 && <p className="muted small center" style={{ marginTop: 24 }}>No hay películas con esos filtros.</p>}
@@ -437,6 +493,10 @@ function Want() {
                 </Link>
                 <div className="row wrap" style={{ gap: '2px 8px', marginTop: 4 }}>
                   <Desire k={e.key} />
+                  {(avail.byKey.get(e.key) ?? []).slice(0, 4).map((k) => {
+                    const pl = getPlatform(k);
+                    return pl ? <img key={k} className="plat-logo" src={img(pl.logo, 'w92')} alt={pl.name} title={pl.name} /> : null;
+                  })}
                   <button className={`with-line ${e.withWho?.length ? 'set' : ''}`} style={{ marginTop: 0 }} onClick={() => openWith(summaryFromSnap(s))} aria-label={`Con quién ver ${s.title}`}>
                     <Icon name="users" size={14} />
                     <span className="ellipsis">{e.withWho?.length ? e.withWho.join(' · ') : '¿Con quién?'}</span>

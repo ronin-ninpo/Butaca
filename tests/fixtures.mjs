@@ -204,6 +204,13 @@ export function tmdbHandler(url, headers = {}) {
     return { body: paged(all.filter((y) => y.type === x.type && y.id !== x.id && y.votes > 0 && y.genres.some((g) => x.genres.includes(g)))) };
   }
   if ((m = path.match(/^\/(movie|tv)\/(\d+)\/external_ids$/))) return { body: { imdb_id: `tt${m[2].padStart(7, '0')}` } };
+  if ((m = path.match(/^\/(movie|tv)\/(\d+)\/watch\/providers$/))) {
+    const id = Number(m[2]);
+    if (id % 5 === 0) return { body: { id, results: {} } };
+    // Los pares también están en «Netflix con anuncios»: la app tiene que contarlo como Netflix.
+    const ads = id % 2 === 0 ? [{ provider_id: 1796, provider_name: 'Netflix basic with Ads', logo_path: '/logo~netflix.jpg' }] : [];
+    return { body: { id, results: { AR: { link: 'https://www.themoviedb.org/', flatrate: PROVIDERS.slice(id % 4, (id % 4) + 2), ads, rent: [PROVIDERS[7]], buy: [PROVIDERS[7]] } } } };
+  }
   if ((m = path.match(/^\/(movie|tv)\/(\d+)$/))) {
     const x = all.find((y) => y.type === m[1] && y.id === Number(m[2]));
     return x ? { body: details(x, q) } : { status: 404, body: {} };
